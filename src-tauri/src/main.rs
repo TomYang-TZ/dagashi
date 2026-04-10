@@ -15,16 +15,23 @@ use std::sync::Mutex;
 use tauri::State;
 
 struct AppState {
-    stats: stats::SharedStats,
     config: Mutex<config::Config>,
     anime_db: std::sync::Arc<Mutex<anime_db::AnimeDb>>,
 }
 
 #[tauri::command]
-fn get_stats(state: State<AppState>) -> stats::DailyStats {
-    let s = state.stats.lock().unwrap().clone();
-    eprintln!("[dagashi] get_stats called, total: {}", s.total);
-    s
+fn get_stats() -> stats::DailyStats {
+    // Read stats from disk (written by dagashi-daemon)
+    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+    let path = config::data_dir().join("stats").join(format!("{today}.json"));
+    if path.exists() {
+        if let Ok(data) = std::fs::read_to_string(&path) {
+            if let Ok(s) = serde_json::from_str::<stats::DailyStats>(&data) {
+                return s;
+            }
+        }
+    }
+    stats::DailyStats::default()
 }
 
 #[tauri::command]
@@ -84,7 +91,7 @@ fn load_pull_meta(date: String) -> Result<storage::PullMeta, String> {
 
 #[tauri::command]
 async fn do_pull(state: State<'_, AppState>) -> Result<storage::PullMeta, String> {
-    let stats_snapshot = state.stats.lock().unwrap().clone();
+    let stats_snapshot = get_stats();
     let cfg = state.config.lock().unwrap().clone();
     let db = state.anime_db.lock().unwrap().clone();
 
@@ -164,46 +171,8 @@ fn main() {
     eprintln!("[dagashi] Starting...");
     let cfg = config::load_config();
     eprintln!("[dagashi] Config loaded");
-    let shared_stats = stats::new_shared();
-    eprintln!("[dagashi] Stats initialized");
-
-    // Keystroke capture — requires macOS Accessibility permission.
-    // In release builds (.app), permission persists. In dev mode, the binary
-    // path changes on recompile so permission is lost — use mock stats instead.
-    // Start keystroke capture — skip permission prompt, just try it.
-    // CGEventTapCreate returns null if no permission (handled gracefully).
-    // Each rebuild changes the binary signature, so re-grant permission
-    // in System Settings > Accessibility after rebuilding.
-    #[cfg(not(debug_assertions))]
-    if cfg.keystroke_capture.enabled {
-        let stats_for_capture = shared_stats.clone();
-        keylogger::set_deaf_mode(cfg.keystroke_capture.deaf_mode);
-        std::thread::spawn(move || {
-            eprintln!("[dagashi] Starting keystroke capture...");
-            keylogger::start_capture(stats_for_capture);
-        });
-    }
-
-    #[cfg(debug_assertions)]
-    {
-        eprintln!("[dagashi] DEV MODE: keystroke capture disabled, using mock stats");
-        let mut s = shared_stats.lock().unwrap();
-        if s.total == 0 {
-            s.total = 8500;
-            for (ch, count) in [("e",890),("t",720),("a",680),("o",590),("i",510),
-                ("n",480),("s",440),("r",410),("h",320),("l",280),("d",250),
-                ("c",220),("u",200),("m",180),("f",150),("p",130),("g",110),
-                ("w",100),("y",90),("b",80),("v",60),("k",50),("j",30),("x",20)] {
-                s.chars.insert(ch.to_string(), count as u64);
-            }
-            s.categories.letter = 7400;
-            s.categories.number = 500;
-            s.categories.symbol = 400;
-            s.categories.modifier = 200;
-            s.backspace_count = 320;
-            s.shift_count = 180;
-        }
-    }
+    // Keystroke capture is handled by dagashi-daemon (separate process).
+    // This app just reads stats from ~/.dagashi/stats/ on disk.
 
     // Start with empty anime DB — load in background so app opens instantly
     let shared_anime_db = std::sync::Arc::new(Mutex::new(
@@ -235,18 +204,9 @@ fn main() {
         }
     });
 
-    // Periodic stats save (every 5 minutes)
-    let stats_for_save = shared_stats.clone();
-    std::thread::spawn(move || loop {
-        std::thread::sleep(std::time::Duration::from_secs(300));
-        let s = stats_for_save.lock().unwrap();
-        stats::save(&s);
-    });
-
     eprintln!("[dagashi] Starting Tauri...");
     tauri::Builder::default()
         .manage(AppState {
-            stats: shared_stats,
             config: Mutex::new(cfg),
             anime_db: shared_anime_db,
         })
