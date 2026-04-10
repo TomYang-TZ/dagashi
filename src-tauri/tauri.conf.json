@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/nicktomyang/tauri-apps/tauri-v2/crates/tauri-cli/schema.json",
   "productName": "Dagashi",
   "version": "0.1.0",
-  "identifier": "com.dagashi.app",
+  "identifier": "com.dagashi.desktop",
   "build": {
     "frontendDist": "../src",
     "beforeDevCommand": "",

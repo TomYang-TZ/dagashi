@@ -3,6 +3,19 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::stats::{self, SharedStats};
 
+/// Check if we have Accessibility permission on macOS.
+#[cfg(target_os = "macos")]
+pub fn has_accessibility_permission() -> bool {
+    #[link(name = "ApplicationServices", kind = "framework")]
+    extern "C" {
+        fn AXIsProcessTrusted() -> bool;
+    }
+    unsafe { AXIsProcessTrusted() }
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn has_accessibility_permission() -> bool { true }
+
 static DEAF_MODE: AtomicBool = AtomicBool::new(false);
 
 pub fn set_deaf_mode(deaf: bool) {

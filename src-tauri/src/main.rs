@@ -170,12 +170,18 @@ fn main() {
     // path changes on recompile so permission is lost — use mock stats instead.
     #[cfg(not(debug_assertions))]
     if cfg.keystroke_capture.enabled {
-        let stats_for_capture = shared_stats.clone();
-        keylogger::set_deaf_mode(cfg.keystroke_capture.deaf_mode);
-        std::thread::spawn(move || {
-            eprintln!("[dagashi] Starting keystroke capture...");
-            keylogger::start_capture(stats_for_capture);
-        });
+        if keylogger::has_accessibility_permission() {
+            let stats_for_capture = shared_stats.clone();
+            keylogger::set_deaf_mode(cfg.keystroke_capture.deaf_mode);
+            std::thread::spawn(move || {
+                eprintln!("[dagashi] Starting keystroke capture...");
+                keylogger::start_capture(stats_for_capture);
+            });
+        } else {
+            eprintln!("[dagashi] No Accessibility permission — keystroke capture disabled.");
+            eprintln!("[dagashi] Grant permission: System Settings > Privacy & Security > Accessibility");
+            eprintln!("[dagashi] Then restart Dagashi.");
+        }
     }
 
     #[cfg(debug_assertions)]
