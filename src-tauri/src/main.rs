@@ -118,6 +118,10 @@ fn do_pull_inner(
 }
 
 fn main() {
+    // Catch panics so the app doesn't silently die
+    std::panic::set_hook(Box::new(|info| {
+        eprintln!("[dagashi] PANIC: {info}");
+    }));
     eprintln!("[dagashi] Starting...");
     let cfg = config::load_config();
     eprintln!("[dagashi] Config loaded");
