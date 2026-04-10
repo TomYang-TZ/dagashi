@@ -2,6 +2,7 @@ use rand::Rng;
 use serde::{Deserialize, Serialize};
 
 use crate::config::RarityThresholds;
+use crate::stats::DailyStats;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Rarity {
@@ -76,6 +77,51 @@ pub fn roll_rarity(total_keystrokes: u64, thresholds: &RarityThresholds) -> Rari
     Rarity::Common
 }
 
+/// Roll whether this pull gets color or mono rendering.
+/// Color is harder to get — probability scales with typing engagement:
+///   - Volume: more keystrokes → higher chance (sigmoid, threshold ~20k)
+///   - Peak intensity: concentrated bursts show focus (top hour / avg hour ratio)
+///   - Character diversity: using more unique chars shows range
+/// Base 15%, caps at ~65%.
+pub fn roll_color(stats: &DailyStats) -> bool {
+    let mut prob: f64 = 0.15; // base 15%
+
+    // Factor 1: Volume boost (sigmoid, midpoint at 20k keystrokes)
+    // At 20k, boost = 0.5 * 0.20 = 0.10. At 60k+, approaches 0.20.
+    let vol = stats.total as f64;
+    let vol_thresh = 20_000.0;
+    let vol_boost = vol * vol / (vol * vol + vol_thresh * vol_thresh);
+    prob += vol_boost * 0.20;
+
+    // Factor 2: Peak hour intensity
+    // If your top hour has 3x+ the average, you had a focused session → reward it.
+    if !stats.hourly_volume.is_empty() {
+        let active_hours: Vec<&u64> = stats.hourly_volume.iter().filter(|&&v| v > 0).collect();
+        if active_hours.len() >= 2 {
+            let avg = active_hours.iter().copied().sum::<u64>() as f64 / active_hours.len() as f64;
+            let peak = *stats.hourly_volume.iter().max().unwrap_or(&0) as f64;
+            if avg > 0.0 {
+                let concentration = (peak / avg).min(5.0); // cap ratio at 5x
+                // ratio of 3.0 → boost ~0.10, ratio of 5.0 → boost ~0.15
+                prob += ((concentration - 1.0) / 4.0).max(0.0) * 0.15;
+            }
+        }
+    }
+
+    // Factor 3: Character diversity
+    // More unique characters typed → small boost. 30+ unique chars is good variety.
+    let unique_chars = stats.chars.len() as f64;
+    let diversity_boost = (unique_chars / 50.0).min(1.0) * 0.10;
+    prob += diversity_boost;
+
+    // Cap at 65%
+    prob = prob.min(0.65);
+
+    let roll: f64 = rand::thread_rng().gen();
+    eprintln!("[dagashi] Color probability: {:.1}% (rolled {:.3})", prob * 100.0, roll);
+    roll < prob
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -96,6 +142,51 @@ mod tests {
             let r = roll_rarity(vol, &t);
             assert!(["common", "uncommon", "rare", "epic", "legendary"].contains(&r.label()));
         }
+    }
+
+    fn make_stats(total: u64, unique_chars: usize, hourly: Vec<u64>) -> DailyStats {
+        let mut chars = std::collections::HashMap::new();
+        for i in 0..unique_chars {
+            chars.insert(format!("{}", (b'a' + (i % 26) as u8) as char), total / unique_chars.max(1) as u64);
+        }
+        DailyStats {
+            date: "2026-04-10".to_string(),
+            total,
+            chars,
+            hourly_volume: hourly,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn color_base_rate_is_low_for_minimal_typing() {
+        let stats = make_stats(100, 5, vec![100; 1]);
+        let n = 10_000;
+        let colors: usize = (0..n).filter(|_| roll_color(&stats)).count();
+        let rate = colors as f64 / n as f64;
+        // Should be close to base rate (~15-20%)
+        assert!(rate < 0.35, "minimal typing color rate too high: {:.1}%", rate * 100.0);
+    }
+
+    #[test]
+    fn color_rate_increases_with_engagement() {
+        let low = make_stats(500, 5, vec![500; 1]);
+        let high = make_stats(80_000, 40, {
+            let mut h = vec![0u64; 24];
+            h[10] = 30_000; // big peak
+            h[14] = 20_000;
+            h[16] = 15_000;
+            h[20] = 15_000;
+            h
+        });
+        let n = 20_000;
+        let low_colors: usize = (0..n).filter(|_| roll_color(&low)).count();
+        let high_colors: usize = (0..n).filter(|_| roll_color(&high)).count();
+        assert!(
+            high_colors > low_colors,
+            "high engagement ({}) should beat low ({})",
+            high_colors, low_colors
+        );
     }
 
     #[test]

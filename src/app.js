@@ -175,10 +175,6 @@ async function initPullPage() {
       '<div class="pull-stats-summary" id="stats-summary">LOADING STATS...</div>' +
       '<div id="pull-countdown" style="font-size:20px;color:var(--text-bright);text-align:center;margin:20px 0;font-family:var(--pixel-font)"></div>' +
       '<div id="pull-countdown-label" style="font-size:7px;color:var(--text-dim);text-align:center;margin-bottom:16px"></div>' +
-      '<div class="mode-toggle mt-8">' +
-        '<button class="mode-btn active" data-mode="mono">MONO</button>' +
-        '<button class="mode-btn" data-mode="color">COLOR</button>' +
-      '</div>' +
       '<div id="pull-result" class="hidden">' +
         '<div class="ascii-display">' +
           '<div class="ascii-art" id="ascii-container"></div>' +
@@ -201,14 +197,6 @@ async function initPullPage() {
     console.error('[dagashi] Failed to load stats:', err);
     document.getElementById('stats-summary').textContent = 'STATS ERROR: ' + err;
   }
-
-  page.querySelectorAll('.mode-btn').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      page.querySelectorAll('.mode-btn').forEach(function(b) { b.classList.remove('active'); });
-      btn.classList.add('active');
-      if (currentAnimator) currentAnimator.setMode(btn.dataset.mode);
-    });
-  });
 
   // Check if today's pull already exists
   var hasTodayPull = false;
@@ -295,20 +283,23 @@ async function doPull() {
     if (currentAnimator) currentAnimator.stop();
 
     currentAnimator = new AsciiAnimator(container, pipeline.frames, ramp);
-    const activeMode = document.querySelector('.mode-btn.active')?.dataset.mode || 'mono';
-    currentAnimator.setMode(activeMode);
+    currentAnimator.setMode(meta.color_mode || 'mono');
     currentAnimator.start();
 
     // Result card
+    var modeClass = meta.color_mode === 'color' ? 'mode-color' : 'mode-mono';
     document.getElementById('result-card').innerHTML = `
       <span class="rarity-badge rarity-${meta.rarity}">${meta.rarity.toUpperCase()}</span>
+      <span class="mode-badge ${modeClass}">${meta.color_mode.toUpperCase()}</span>
       <div class="result-character">${meta.character}</div>
       <div style="font-size:8px;color:var(--text-dim);margin-bottom:4px">${meta.anime_title || ''} ${meta.anime_rank ? '#' + meta.anime_rank : ''}</div>
       <div class="result-flavor">"${meta.flavor_text}"</div>
       <div class="mt-8" style="font-size:7px;color:var(--text-dim)">
-        SOURCE: ${meta.source} | FRAMES: ${meta.frame_count} | MODE: ${meta.color_mode}
+        SOURCE: ${meta.source} | FRAMES: ${meta.frame_count}
       </div>
+      <div id="ipfs-slot" class="mt-8"></div>
     `;
+    renderIpfsSlot(meta.date, meta.ipfs_cid);
 
     // Update countdown area to show result
     if (countdown) {
@@ -328,6 +319,48 @@ async function doPull() {
     if (status) status.textContent = 'ERROR: ' + err;
     if (countdown) countdown.textContent = 'PULL FAILED';
   }
+}
+
+// ============================================
+// IPFS PIN BUTTON
+// ============================================
+
+async function renderIpfsSlot(date, existingCid) {
+  var slot = document.getElementById('ipfs-slot');
+  if (!slot) return;
+
+  var cid = existingCid || (await invoke('get_pull_cid', { date: date }));
+  if (cid) {
+    slot.innerHTML =
+      '<a href="https://gateway.pinata.cloud/ipfs/' + cid + '" target="_blank" class="ipfs-link">' +
+      'IPFS: ' + cid.substring(0, 16) + '...' +
+      '</a>';
+    return;
+  }
+
+  var config = appConfig || (await invoke('get_config'));
+  if (!config.pinata_jwt) {
+    slot.innerHTML = '';
+    return;
+  }
+
+  slot.innerHTML = '<button class="pin-btn" id="pin-ipfs-btn">PIN TO IPFS</button>';
+  document.getElementById('pin-ipfs-btn').addEventListener('click', async function() {
+    var btn = this;
+    btn.disabled = true;
+    btn.textContent = 'PINNING...';
+    try {
+      var cid = await invoke('pin_pull', { date: date });
+      slot.innerHTML =
+        '<a href="https://gateway.pinata.cloud/ipfs/' + cid + '" target="_blank" class="ipfs-link">' +
+        'IPFS: ' + cid.substring(0, 16) + '...' +
+        '</a>';
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = 'PIN FAILED — RETRY';
+      console.error('[dagashi] IPFS pin failed:', err);
+    }
+  });
 }
 
 // ============================================
@@ -387,23 +420,24 @@ async function viewPull(date) {
       if (currentAnimator) currentAnimator.stop();
       currentAnimator = new AsciiAnimator(container, pipeline.frames, ramp);
 
-      // Set mode based on pull's color_mode
+      // Lock mode to what was rolled
       var mode = meta.color_mode || 'mono';
-      document.querySelectorAll('.mode-btn').forEach(function(b) {
-        b.classList.toggle('active', b.dataset.mode === mode);
-      });
       currentAnimator.setMode(mode);
       currentAnimator.start();
 
       // Show result card
+      var modeClass = mode === 'color' ? 'mode-color' : 'mode-mono';
       document.getElementById('result-card').innerHTML =
         '<span class="rarity-badge rarity-' + meta.rarity + '">' + meta.rarity.toUpperCase() + '</span>' +
+        '<span class="mode-badge ' + modeClass + '">' + mode.toUpperCase() + '</span>' +
         '<div class="result-character">' + meta.character + '</div>' +
         '<div style="font-size:8px;color:var(--text-dim);margin-bottom:4px">' + (meta.anime_title || '') + ' ' + (meta.anime_rank ? '#' + meta.anime_rank : '') + '</div>' +
         '<div class="result-flavor">"' + meta.flavor_text + '"</div>' +
         '<div class="mt-8" style="font-size:7px;color:var(--text-dim)">' +
-        'SOURCE: ' + meta.source + ' | FRAMES: ' + meta.frame_count + ' | MODE: ' + meta.color_mode + ' | DATE: ' + meta.date +
-        '</div>';
+        'SOURCE: ' + meta.source + ' | FRAMES: ' + meta.frame_count + ' | DATE: ' + meta.date +
+        '</div>' +
+        '<div id="ipfs-slot" class="mt-8"></div>';
+      renderIpfsSlot(date, meta.ipfs_cid);
 
       setTimeout(function() {
         document.getElementById('result-card').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -538,27 +572,11 @@ async function renderSettings() {
     </div>
 
     <div class="settings-section">
-      <div class="settings-label">PULL TRIGGER</div>
-      <div class="settings-row">
-        <button class="mode-btn ${config.pull_trigger.mode === 'manual' ? 'active' : ''}"
-          data-trigger="manual">MANUAL</button>
-        <button class="mode-btn ${config.pull_trigger.mode === 'scheduled' ? 'active' : ''}"
-          data-trigger="scheduled">SCHEDULED</button>
-        <input class="settings-input" id="set-schedule-time"
-          value="${config.pull_trigger.scheduled_time}" style="width:80px">
-      </div>
-    </div>
-
-    <div class="settings-section">
-      <div class="settings-label">ASCII COLUMNS: ${config.ascii.columns}</div>
-      <input type="range" id="set-cols" min="40" max="150" value="${config.ascii.columns}"
-        style="width:300px">
-    </div>
-
-    <div class="settings-section">
-      <div class="settings-label">COLOR PROBABILITY: ${Math.round(config.ascii.color_probability * 100)}%</div>
-      <input type="range" id="set-color-prob" min="0" max="100"
-        value="${Math.round(config.ascii.color_probability * 100)}" style="width:300px">
+      <div class="settings-label">PINATA JWT</div>
+      <input class="settings-input" id="set-pinata-jwt"
+        value="${config.pinata_jwt || ''}"
+        placeholder="OPTIONAL — ENABLES IPFS PULL RECEIPTS">
+      <div class="settings-hint">FREE JWT FROM APP.PINATA.CLOUD — PINS VERIFIABLE PULL PROOFS TO IPFS</div>
     </div>
 
     <div class="settings-section">
@@ -577,14 +595,10 @@ async function renderSettings() {
 
   // Wire up save
   document.getElementById('save-settings').addEventListener('click', async () => {
-    const triggerBtn = page.querySelector('[data-trigger].active');
     const modelBtn = page.querySelector('[data-model].active');
 
     config.giphy_api_key = document.getElementById('set-giphy-key').value || null;
-    config.pull_trigger.mode = triggerBtn?.dataset.trigger || 'manual';
-    config.pull_trigger.scheduled_time = document.getElementById('set-schedule-time').value;
-    config.ascii.columns = parseInt(document.getElementById('set-cols').value);
-    config.ascii.color_probability = parseInt(document.getElementById('set-color-prob').value) / 100;
+    config.pinata_jwt = document.getElementById('set-pinata-jwt').value || null;
     config.llm.cli_model = modelBtn?.dataset.model || 'haiku';
 
     try {
@@ -596,12 +610,6 @@ async function renderSettings() {
   });
 
   // Toggle buttons
-  page.querySelectorAll('[data-trigger]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      page.querySelectorAll('[data-trigger]').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-    });
-  });
   page.querySelectorAll('[data-model]').forEach(btn => {
     btn.addEventListener('click', () => {
       page.querySelectorAll('[data-model]').forEach(b => b.classList.remove('active'));
@@ -666,8 +674,9 @@ function mockConfig() {
     pull_trigger: { mode: 'manual', scheduled_time: '18:00' },
     rarity_thresholds: { uncommon: 10000, rare: 30000, epic: 60000, legendary: 100000 },
     llm: { mode: 'cli', cli_model: 'haiku', cli_effort: 'low', api_key: null, api_temperature: 0.99 },
-    ascii: { columns: 100, color_probability: 0.5 },
+    ascii: { columns: 100 },
     giphy_api_key: null,
+    pinata_jwt: null,
   };
 }
 

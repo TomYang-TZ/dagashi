@@ -5,6 +5,7 @@ mod config;
 mod gacha;
 mod giphy;
 mod image_pipeline;
+mod ipfs;
 mod keylogger;
 mod llm;
 mod stats;
@@ -50,6 +51,15 @@ fn save_config_cmd(state: State<AppState>, new_config: config::Config) -> Result
 fn toggle_deaf_mode(state: State<AppState>) -> bool {
     let deaf = !keylogger::is_deaf();
     keylogger::set_deaf_mode(deaf);
+
+    // Write/remove file flag so the daemon sees it too
+    let flag_path = config::data_dir().join("deaf");
+    if deaf {
+        std::fs::write(&flag_path, "1").ok();
+    } else {
+        std::fs::remove_file(&flag_path).ok();
+    }
+
     let mut cfg = state.config.lock().unwrap();
     cfg.keystroke_capture.deaf_mode = deaf;
     config::save_config(&cfg).ok();
@@ -90,6 +100,49 @@ fn load_pull_meta(date: String) -> Result<storage::PullMeta, String> {
 }
 
 #[tauri::command]
+fn get_pull_cid(date: String) -> Option<String> {
+    ipfs::load_pull_cid(&date)
+}
+
+#[tauri::command]
+async fn pin_pull(state: State<'_, AppState>, date: String) -> Result<String, String> {
+    let cfg = state.config.lock().unwrap().clone();
+    let jwt = cfg.pinata_jwt
+        .as_deref()
+        .filter(|s| !s.is_empty())
+        .ok_or("no Pinata JWT configured — add one in Settings")?;
+
+    // Check if already pinned
+    if let Some(cid) = ipfs::load_pull_cid(&date) {
+        return Ok(cid);
+    }
+
+    let jwt = jwt.to_string();
+    tokio::task::spawn_blocking(move || {
+        let meta = storage::load_pull_meta(&date)?;
+        let pipeline = storage::load_pull_frames(&date)?;
+        let receipt = ipfs::build_receipt(&meta, &pipeline)?;
+        let cid = ipfs::pin_receipt(&receipt, &jwt)?;
+
+        // Save locally
+        ipfs::save_receipt(&date, &receipt, &cid);
+
+        // Update meta with CID
+        let mut meta = meta;
+        meta.ipfs_cid = Some(cid.clone());
+        let meta_json = serde_json::to_string_pretty(&meta).map_err(|e| e.to_string())?;
+        std::fs::write(
+            storage::pulls_dir().join(&date).join("meta.json"),
+            meta_json,
+        ).map_err(|e| e.to_string())?;
+
+        Ok(cid)
+    })
+    .await
+    .map_err(|e| format!("pin task failed: {e}"))?
+}
+
+#[tauri::command]
 async fn do_pull(state: State<'_, AppState>) -> Result<storage::PullMeta, String> {
     let stats_snapshot = get_stats();
     let cfg = state.config.lock().unwrap().clone();
@@ -127,8 +180,8 @@ fn do_pull_inner(
     )?;
     eprintln!("[dagashi] LLM picked: {} - {}", selection.character, selection.scene);
 
-    // 4. Determine color mode
-    let color_mode = if rand::random::<f64>() < cfg.ascii.color_probability {
+    // 4. Roll color mode based on typing engagement
+    let color_mode = if gacha::roll_color(&stats_snapshot) {
         "color"
     } else {
         "mono"
@@ -145,7 +198,7 @@ fn do_pull_inner(
     eprintln!("[dagashi] Got {} frames from {}", pipeline.frames.len(), pipeline.source);
 
     // 6. Save pull
-    let meta = storage::PullMeta {
+    let mut meta = storage::PullMeta {
         date: stats_snapshot.date.clone(),
         character: selection.character,
         scene: selection.scene,
@@ -156,6 +209,7 @@ fn do_pull_inner(
         frame_count: pipeline.frames.len(),
         anime_title: anime.title.clone(),
         anime_rank: anime.popularity_rank,
+        ipfs_cid: None,
     };
 
     storage::save_pull(&meta, &pipeline)?;
@@ -261,6 +315,8 @@ fn main() {
             get_anime_db_status,
             load_pull_frames,
             load_pull_meta,
+            get_pull_cid,
+            pin_pull,
             do_pull,
         ])
         .run(tauri::generate_context!())

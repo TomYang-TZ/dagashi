@@ -16,7 +16,8 @@ pub struct PullMeta {
     pub color_mode: String,
     pub frame_count: usize,
     pub anime_title: String,
-    pub anime_rank: u32, // popularity rank at time of pull
+    pub anime_rank: u32,       // popularity rank at time of pull
+    pub ipfs_cid: Option<String>, // IPFS content identifier (if pinned)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

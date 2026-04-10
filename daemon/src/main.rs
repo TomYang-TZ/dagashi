@@ -165,6 +165,10 @@ guard let tap = CGEvent.tapCreate(
     eventsOfInterest: CGEventMask(eventMask),
     callback: { _, type, event, _ in
         if type == .keyDown {
+            // Ignore key repeats (holding a key down)
+            if event.getIntegerValueField(.keyboardEventAutorepeat) != 0 {
+                return Unmanaged.passRetained(event)
+            }
             let keycode = event.getIntegerValueField(.keyboardEventKeycode)
             print(keycode)
             fflush(stdout)
@@ -213,6 +217,14 @@ CFRunLoopRun()
     bin_path
 }
 
+fn deaf_flag_path() -> std::path::PathBuf {
+    data_dir().join("deaf")
+}
+
+fn is_deaf() -> bool {
+    deaf_flag_path().exists()
+}
+
 fn main() {
     eprintln!("╔═══════════════════════════════════╗");
     eprintln!("║  DAGASHI DAEMON — key listener    ║");
@@ -258,6 +270,11 @@ fn main() {
     let reader = BufReader::new(stdout);
     for line in reader.lines().map_while(Result::ok) {
         if let Ok(keycode) = line.trim().parse::<u16>() {
+            // Skip recording if deaf mode is active
+            if is_deaf() {
+                continue;
+            }
+
             let name = keycode_to_name(keycode);
             let count = TOTAL_KEYS.fetch_add(1, Ordering::Relaxed) + 1;
             if count <= 10 || count % 100 == 0 {

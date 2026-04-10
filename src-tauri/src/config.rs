@@ -10,6 +10,7 @@ pub struct Config {
     pub llm: LlmConfig,
     pub ascii: AsciiConfig,
     pub giphy_api_key: Option<String>,
+    pub pinata_jwt: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -45,7 +46,6 @@ pub struct LlmConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AsciiConfig {
     pub columns: u32,
-    pub color_probability: f64,
 }
 
 impl Default for Config {
@@ -75,9 +75,9 @@ impl Default for Config {
             },
             ascii: AsciiConfig {
                 columns: 100,
-                color_probability: 0.5,
             },
             giphy_api_key: None,
+            pinata_jwt: None,
         }
     }
 }
