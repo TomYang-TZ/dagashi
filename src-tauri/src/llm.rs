@@ -83,18 +83,28 @@ The flavor_text should be a fun 1-2 sentence "reading" of their typing personali
 
     let stdout = String::from_utf8_lossy(&output.stdout);
 
-    // claude -p --output-format json may wrap in {"type":"result","result":"..."}
-    // or return the JSON directly with --json-schema. Handle both.
-    let result_text = if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&stdout) {
-        if let Some(result) = parsed.get("result").and_then(|v| v.as_str()) {
-            result.to_string()
-        } else {
-            stdout.to_string()
-        }
-    } else {
-        stdout.to_string()
-    };
+    // claude -p --output-format json returns a wrapper with multiple fields:
+    //   {"type":"result", "result":"...", "structured_output":{...}, ...}
+    // The structured_output field contains our --json-schema validated data.
+    // Try in order: structured_output > parse result string > parse raw stdout
+    let parsed: serde_json::Value = serde_json::from_str(&stdout)
+        .map_err(|e| format!("failed to parse claude output as JSON: {e}\nraw: {stdout}"))?;
 
-    serde_json::from_str(&result_text)
-        .map_err(|e| format!("failed to parse character selection: {e}\nraw: {stdout}"))
+    // Try structured_output first (present when --json-schema is used)
+    if let Some(structured) = parsed.get("structured_output") {
+        if let Ok(selection) = serde_json::from_value(structured.clone()) {
+            return Ok(selection);
+        }
+    }
+
+    // Try result field as JSON string
+    if let Some(result_str) = parsed.get("result").and_then(|v| v.as_str()) {
+        if let Ok(selection) = serde_json::from_str(result_str) {
+            return Ok(selection);
+        }
+    }
+
+    // Try parsing the whole output directly
+    serde_json::from_value(parsed.clone())
+        .map_err(|e| format!("failed to extract character selection: {e}\nraw: {stdout}"))
 }

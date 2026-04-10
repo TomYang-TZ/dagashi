@@ -104,17 +104,19 @@ fn do_pull(state: State<AppState>) -> Result<storage::PullMeta, String> {
 }
 
 fn main() {
+    eprintln!("[dagashi] Starting...");
     let cfg = config::load_config();
+    eprintln!("[dagashi] Config loaded");
     let shared_stats = stats::new_shared();
+    eprintln!("[dagashi] Stats initialized");
 
-    // Start keystroke capture on a background thread
-    if cfg.keystroke_capture.enabled {
-        let stats_for_capture = shared_stats.clone();
-        keylogger::set_deaf_mode(cfg.keystroke_capture.deaf_mode);
-        std::thread::spawn(move || {
-            keylogger::start_capture(stats_for_capture);
-        });
-    }
+    // Keystroke capture requires macOS Accessibility permission.
+    // rdev::listen crashes the process if permission is not granted.
+    // Skip on startup — user enables via Settings after granting permission.
+    // TODO: add permission check before starting capture
+    eprintln!("[dagashi] Keystroke capture disabled until Accessibility permission is granted.");
+    eprintln!("[dagashi] Grant permission in System Settings > Privacy & Security > Accessibility,");
+    eprintln!("[dagashi] then enable in Dagashi Settings.");
 
     // Periodic stats save (every 5 minutes)
     let stats_for_save = shared_stats.clone();
@@ -124,6 +126,7 @@ fn main() {
         stats::save(&s);
     });
 
+    eprintln!("[dagashi] Starting Tauri...");
     tauri::Builder::default()
         .manage(AppState {
             stats: shared_stats,
