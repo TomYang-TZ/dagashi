@@ -1,7 +1,7 @@
-<p align="center">
-  <img src="assets/dagashi-demo.gif" alt="Dagashi mono ASCII art" width="400">
-  <img src="assets/dagashi-color.gif" alt="Dagashi color ASCII art" width="400">
-</p>
+<table align="center"><tr>
+<td><img src="assets/dagashi-demo.gif" alt="Dagashi mono ASCII art" width="400"></td>
+<td><img src="assets/dagashi-color.gif" alt="Dagashi color ASCII art" width="400"></td>
+</tr></table>
 
 <h1 align="center">D A G A S H I</h1>
 
