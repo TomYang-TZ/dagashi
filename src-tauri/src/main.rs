@@ -163,6 +163,47 @@ fn do_pull_inner(
     Ok(meta)
 }
 
+fn launch_daemon_if_needed() {
+    use std::process::Command;
+
+    // Check if daemon is already running
+    let check = Command::new("pgrep")
+        .args(["-f", "dagashi-daemon"])
+        .output();
+
+    if let Ok(output) = check {
+        if output.status.success() {
+            eprintln!("[dagashi] Daemon already running");
+            return;
+        }
+    }
+
+    // Look for the daemon binary in known locations
+    let home = dirs::home_dir().expect("no home dir");
+    let daemon_paths = [
+        home.join("dagashi/daemon/target/release/dagashi-daemon"),
+        home.join(".dagashi/bin/dagashi-daemon"),
+        std::path::PathBuf::from("/usr/local/bin/dagashi-daemon"),
+    ];
+
+    for path in &daemon_paths {
+        if path.exists() {
+            eprintln!("[dagashi] Launching daemon from {:?}", path);
+            // Launch daemon in background via Terminal so it inherits Input Monitoring
+            let script = format!(
+                "tell application \"Terminal\" to do script \"{}\" & \"\"",
+                path.display()
+            );
+            let _ = Command::new("osascript")
+                .args(["-e", &script])
+                .spawn();
+            return;
+        }
+    }
+
+    eprintln!("[dagashi] Daemon binary not found. Run: cd ~/dagashi/daemon && cargo build --release");
+}
+
 fn main() {
     // Catch panics so the app doesn't silently die
     std::panic::set_hook(Box::new(|info| {
@@ -171,8 +212,9 @@ fn main() {
     eprintln!("[dagashi] Starting...");
     let cfg = config::load_config();
     eprintln!("[dagashi] Config loaded");
-    // Keystroke capture is handled by dagashi-daemon (separate process).
-    // This app just reads stats from ~/.dagashi/stats/ on disk.
+
+    // Auto-launch the daemon if it's not already running
+    launch_daemon_if_needed();
 
     // Start with empty anime DB — load in background so app opens instantly
     let shared_anime_db = std::sync::Arc::new(Mutex::new(

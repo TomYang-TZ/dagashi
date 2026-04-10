@@ -214,10 +214,10 @@ fn main() {
         eprintln!("[dagashi-daemon] Loaded stats for {}: {} keys so far", s.date, s.total);
     }
 
-    // Periodic save every 10 seconds
+    // Periodic save every 2 seconds for low-latency UI updates
     let stats_for_save = stats.clone();
     std::thread::spawn(move || loop {
-        std::thread::sleep(Duration::from_secs(10));
+        std::thread::sleep(Duration::from_secs(2));
         let s = stats_for_save.lock().unwrap();
         save_stats(&s);
     });
@@ -254,8 +254,8 @@ fn main() {
             }
             record_key(&stats, name);
 
-            // Save every 50 keys
-            if count % 50 == 0 {
+            // Save every 10 keys for responsiveness
+            if count % 10 == 0 {
                 let s = stats.lock().unwrap();
                 save_stats(&s);
             }
