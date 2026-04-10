@@ -24,14 +24,6 @@ It is completely, utterly, magnificently **useless**.
 
 <table align="center">
 <tr>
-<td align="center"><strong>Gintoki — mono</strong></td>
-<td align="center"><strong>Gintoki — color</strong></td>
-</tr>
-<tr>
-<td><img src="assets/dagashi-demo.gif" alt="Gintoki monochrome ASCII art" width="360"></td>
-<td><img src="assets/dagashi-color.gif" alt="Gintoki color ASCII art" width="360"></td>
-</tr>
-<tr>
 <td align="center"><strong>Kagura — mono</strong></td>
 <td align="center"><strong>Kagura — color</strong></td>
 </tr>

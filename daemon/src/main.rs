@@ -154,7 +154,9 @@ fn compile_helper() -> std::path::PathBuf {
     let swift_code = r#"
 import Cocoa
 
-let eventMask = (1 << CGEventType.keyDown.rawValue)
+// Capture keyDown (1<<10) + flagsChanged (1<<12) for modifier keys
+let eventMask = (1 << CGEventType.keyDown.rawValue) | (1 << CGEventType.flagsChanged.rawValue)
+var prevFlags: UInt64 = 0
 
 guard let tap = CGEvent.tapCreate(
     tap: .cgSessionEventTap,
@@ -166,6 +168,15 @@ guard let tap = CGEvent.tapCreate(
             let keycode = event.getIntegerValueField(.keyboardEventKeycode)
             print(keycode)
             fflush(stdout)
+        } else if type == .flagsChanged {
+            // Only fire on key-down of modifier (new flag bit set)
+            let flags = event.flags.rawValue
+            if flags > prevFlags {
+                let keycode = event.getIntegerValueField(.keyboardEventKeycode)
+                print(keycode)
+                fflush(stdout)
+            }
+            prevFlags = flags
         }
         return Unmanaged.passRetained(event)
     },
