@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dagashi</title>
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src ipc: http://ipc.localhost">
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
@@ -49,6 +48,15 @@
     <span id="status-time"></span>
   </footer>
 
+  <!-- Catch any JS errors and show them visually -->
+  <script>
+    window.onerror = function(msg, src, line, col, err) {
+      document.getElementById('page-pull').innerHTML =
+        '<div style="color:#f44;font-size:8px;padding:16px;font-family:monospace;white-space:pre-wrap">' +
+        'JS ERROR: ' + msg + '\nFile: ' + src + ':' + line + ':' + col +
+        '\n' + (err ? err.stack : '') + '</div>';
+    };
+  </script>
   <script src="app.js"></script>
 </body>
 </html>
