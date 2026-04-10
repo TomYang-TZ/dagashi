@@ -56,9 +56,23 @@ fn load_pull_frames(date: String) -> Result<image_pipeline::PipelineResult, Stri
 }
 
 #[tauri::command]
-fn do_pull(state: State<AppState>) -> Result<storage::PullMeta, String> {
+async fn do_pull(state: State<'_, AppState>) -> Result<storage::PullMeta, String> {
     let stats_snapshot = state.stats.lock().unwrap().clone();
     let cfg = state.config.lock().unwrap().clone();
+
+    // Run the heavy work (LLM call + image download) on a background thread
+    // so the UI stays responsive
+    tauri::async_runtime::spawn_blocking(move || {
+        do_pull_inner(stats_snapshot, cfg)
+    })
+    .await
+    .map_err(|e| format!("pull task failed: {e}"))?
+}
+
+fn do_pull_inner(
+    stats_snapshot: stats::DailyStats,
+    cfg: config::Config,
+) -> Result<storage::PullMeta, String> {
 
     // 1. Roll rarity
     let rarity = gacha::roll_rarity(stats_snapshot.total, &cfg.rarity_thresholds);
@@ -111,12 +125,15 @@ fn main() {
     eprintln!("[dagashi] Stats initialized");
 
     // Keystroke capture requires macOS Accessibility permission.
-    // rdev::listen crashes the process if permission is not granted.
-    // Skip on startup — user enables via Settings after granting permission.
-    // TODO: add permission check before starting capture
-    eprintln!("[dagashi] Keystroke capture disabled until Accessibility permission is granted.");
-    eprintln!("[dagashi] Grant permission in System Settings > Privacy & Security > Accessibility,");
-    eprintln!("[dagashi] then enable in Dagashi Settings.");
+    if cfg.keystroke_capture.enabled {
+        let stats_for_capture = shared_stats.clone();
+        keylogger::set_deaf_mode(cfg.keystroke_capture.deaf_mode);
+        std::thread::spawn(move || {
+            eprintln!("[dagashi] Starting keystroke capture...");
+            keylogger::start_capture(stats_for_capture);
+            eprintln!("[dagashi] Keystroke capture ended.");
+        });
+    }
 
     // Periodic stats save (every 5 minutes)
     let stats_for_save = shared_stats.clone();

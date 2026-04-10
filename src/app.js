@@ -185,16 +185,43 @@ async function initPullPage() {
   updateStatusBar();
 }
 
+// Loading animation frames — spinning pixel art
+const LOADING_FRAMES = [
+  '[ ◰ PULLING... ]',
+  '[ ◳ PULLING... ]',
+  '[ ◲ PULLING... ]',
+  '[ ◱ PULLING... ]',
+];
+const LOADING_MESSAGES = [
+  'ROLLING RARITY DICE...',
+  'CONSULTING THE ORACLE...',
+  'SEARCHING FOR GINTAMA GIFS...',
+  'CONVERTING TO ASCII...',
+  'ALMOST THERE...',
+];
+
 async function doPull() {
   const btn = document.getElementById('pull-btn');
   const status = document.getElementById('pull-status');
 
   btn.classList.add('loading');
-  btn.textContent = '[ PULLING... ]';
-  status.textContent = 'ROLLING RARITY...';
+  btn.disabled = true;
+
+  // Animate the button and status while waiting
+  let frame = 0;
+  let msgIdx = 0;
+  const loadingInterval = setInterval(() => {
+    btn.textContent = LOADING_FRAMES[frame % LOADING_FRAMES.length];
+    frame++;
+    if (frame % 8 === 0) {
+      msgIdx = Math.min(msgIdx + 1, LOADING_MESSAGES.length - 1);
+    }
+    status.textContent = LOADING_MESSAGES[msgIdx];
+  }, 200);
 
   try {
     const meta = await invoke('do_pull');
+    clearInterval(loadingInterval);
     status.textContent = `GOT: ${meta.character} (${meta.rarity})`;
 
     // Load the frames
@@ -227,10 +254,12 @@ async function doPull() {
 
     btn.textContent = '[ PULL AGAIN ]';
   } catch (err) {
+    clearInterval(loadingInterval);
     status.textContent = `ERROR: ${err}`;
     btn.textContent = '[ PULL ]';
   }
 
+  btn.disabled = false;
   btn.classList.remove('loading');
 }
 
