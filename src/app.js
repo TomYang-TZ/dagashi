@@ -155,46 +155,52 @@ document.querySelectorAll('.nav-tab').forEach(tab => {
 // PULL PAGE
 // ============================================
 
+function formatCountdown() {
+  var now = new Date();
+  var midnight = new Date(now);
+  midnight.setHours(23, 59, 0, 0); // 11:59 PM
+  var diff = midnight - now;
+  if (diff <= 0) return null; // pull time!
+  var h = Math.floor(diff / 3600000);
+  var m = Math.floor((diff % 3600000) / 60000);
+  var s = Math.floor((diff % 60000) / 1000);
+  return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+}
+
 async function initPullPage() {
-  const page = document.getElementById('page-pull');
+  var page = document.getElementById('page-pull');
 
-  // Render UI first, fetch data after
-  page.innerHTML = `
-    <div class="pull-container">
-      <div class="pull-stats-summary" id="stats-summary">LOADING STATS...</div>
-
-      <button class="pull-btn" id="pull-btn">
-        [ PULL ]
-      </button>
-
-      <div class="mode-toggle mt-8">
-        <button class="mode-btn active" data-mode="mono">MONO</button>
-        <button class="mode-btn" data-mode="color">COLOR</button>
-      </div>
-
-      <div id="pull-result" class="hidden">
-        <div class="ascii-display">
-          <div class="ascii-art" id="ascii-container"></div>
-        </div>
-        <div class="result-card" id="result-card"></div>
-      </div>
-
-      <div id="pull-status" class="text-center mt-16" style="font-size:8px;color:var(--text-dim)"></div>
-    </div>
-  `;
+  page.innerHTML =
+    '<div class="pull-container">' +
+      '<div class="pull-stats-summary" id="stats-summary">LOADING STATS...</div>' +
+      '<div id="pull-countdown" style="font-size:20px;color:var(--text-bright);text-align:center;margin:20px 0;font-family:var(--pixel-font)"></div>' +
+      '<div id="pull-countdown-label" style="font-size:7px;color:var(--text-dim);text-align:center;margin-bottom:16px"></div>' +
+      '<div class="mode-toggle mt-8">' +
+        '<button class="mode-btn active" data-mode="mono">MONO</button>' +
+        '<button class="mode-btn" data-mode="color">COLOR</button>' +
+      '</div>' +
+      '<div id="pull-result" class="hidden">' +
+        '<div class="ascii-display">' +
+          '<div class="ascii-art" id="ascii-container"></div>' +
+        '</div>' +
+        '<div class="result-card" id="result-card"></div>' +
+      '</div>' +
+      '<div id="pull-status" class="text-center mt-16" style="font-size:8px;color:var(--text-dim)"></div>' +
+    '</div>';
 
   // Fetch data and update UI
   try {
     appStats = await invoke('get_stats');
     appConfig = await invoke('get_config');
     document.getElementById('stats-summary').textContent =
-      `TODAY: ${appStats.total.toLocaleString()} KEYS | ${Object.keys(appStats.chars).length} UNIQUE CHARS | ${appStats.categories?.letter || 0} LETTERS | ${appStats.backspace_count || 0} BACKSPACES`;
+      'TODAY: ' + appStats.total.toLocaleString() + ' KEYS | ' +
+      Object.keys(appStats.chars).length + ' UNIQUE CHARS | ' +
+      (appStats.categories ? appStats.categories.letter : 0) + ' LETTERS | ' +
+      (appStats.backspace_count || 0) + ' BACKSPACES';
   } catch (err) {
     console.error('[dagashi] Failed to load stats:', err);
-    document.getElementById('stats-summary').textContent = `STATS ERROR: ${err}`;
+    document.getElementById('stats-summary').textContent = 'STATS ERROR: ' + err;
   }
-
-  document.getElementById('pull-btn').addEventListener('click', doPull);
 
   page.querySelectorAll('.mode-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
@@ -204,61 +210,74 @@ async function initPullPage() {
     });
   });
 
-  // Check if today's pull already exists — show it and disable pull button
+  // Check if today's pull already exists
+  var hasTodayPull = false;
   try {
     var today = new Date().toISOString().split('T')[0];
     var todayMeta = await invoke('load_pull_meta', { date: today });
     if (todayMeta) {
-      document.getElementById('pull-btn').textContent = '[ ALREADY PULLED TODAY ]';
-      document.getElementById('pull-btn').disabled = true;
-      document.getElementById('pull-btn').classList.add('loading');
-      document.getElementById('pull-status').textContent = '1 PULL PER DAY — COME BACK TOMORROW';
-      // Auto-load today's pull
+      hasTodayPull = true;
+      document.getElementById('pull-countdown').textContent = 'TODAY\'S PULL';
+      document.getElementById('pull-countdown-label').textContent = todayMeta.character + ' — ' + todayMeta.anime_title;
       viewPull(today);
     }
   } catch (e) {
-    // No pull today — button stays active
+    // No pull today
+  }
+
+  if (!hasTodayPull) {
+    // Show countdown to 11:59 PM
+    function updateCountdown() {
+      var cd = formatCountdown();
+      var el = document.getElementById('pull-countdown');
+      var label = document.getElementById('pull-countdown-label');
+      if (!el) return;
+      if (cd === null) {
+        // It's 11:59 PM — trigger the pull!
+        el.textContent = '[ PULLING... ]';
+        label.textContent = 'AUTO-PULL TRIGGERED';
+        clearInterval(countdownInterval);
+        doPull();
+      } else {
+        el.textContent = cd;
+        label.textContent = 'PULL IN';
+      }
+    }
+    updateCountdown();
+    var countdownInterval = setInterval(updateCountdown, 1000);
   }
 
   updateStatusBar();
 }
 
-// Loading animation frames — spinning pixel art
-const LOADING_FRAMES = [
-  '[ ◰ PULLING... ]',
-  '[ ◳ PULLING... ]',
-  '[ ◲ PULLING... ]',
-  '[ ◱ PULLING... ]',
-];
-const LOADING_MESSAGES = [
+// Loading messages for auto-pull
+var LOADING_MESSAGES = [
   'ROLLING RARITY DICE...',
   'CONSULTING THE ORACLE...',
-  'SEARCHING FOR GINTAMA GIFS...',
+  'SEARCHING FOR ANIME GIFS...',
   'CONVERTING TO ASCII...',
   'ALMOST THERE...',
 ];
 
 async function doPull() {
-  const btn = document.getElementById('pull-btn');
-  const status = document.getElementById('pull-status');
+  var countdown = document.getElementById('pull-countdown');
+  var status = document.getElementById('pull-status');
 
-  btn.classList.add('loading');
-  btn.disabled = true;
-
-  // Animate the button and status while waiting
-  let frame = 0;
-  let msgIdx = 0;
-  const loadingInterval = setInterval(() => {
-    btn.textContent = LOADING_FRAMES[frame % LOADING_FRAMES.length];
+  // Animate countdown area while pulling
+  var frame = 0;
+  var msgIdx = 0;
+  var spinChars = ['◰', '◳', '◲', '◱'];
+  var loadingInterval = setInterval(function() {
+    if (countdown) countdown.textContent = spinChars[frame % spinChars.length] + ' PULLING...';
     frame++;
     if (frame % 8 === 0) {
       msgIdx = Math.min(msgIdx + 1, LOADING_MESSAGES.length - 1);
     }
-    status.textContent = LOADING_MESSAGES[msgIdx];
+    if (status) status.textContent = LOADING_MESSAGES[msgIdx];
   }, 200);
 
   try {
-    const meta = await invoke('do_pull');
+    var meta = await invoke('do_pull');
     clearInterval(loadingInterval);
     status.textContent = `GOT: ${meta.character} (${meta.rarity})`;
 
@@ -291,7 +310,14 @@ async function doPull() {
       </div>
     `;
 
-    btn.textContent = '[ PULL AGAIN ]';
+    // Update countdown area to show result
+    if (countdown) {
+      countdown.textContent = 'TODAY\'S PULL';
+    }
+    var cdLabel = document.getElementById('pull-countdown-label');
+    if (cdLabel) {
+      cdLabel.textContent = meta.character + ' — ' + (meta.anime_title || '');
+    }
 
     // Scroll to result card so it's visible
     setTimeout(function() {
@@ -299,12 +325,9 @@ async function doPull() {
     }, 500);
   } catch (err) {
     clearInterval(loadingInterval);
-    status.textContent = `ERROR: ${err}`;
-    btn.textContent = '[ PULL ]';
+    if (status) status.textContent = 'ERROR: ' + err;
+    if (countdown) countdown.textContent = 'PULL FAILED';
   }
-
-  btn.disabled = false;
-  btn.classList.remove('loading');
 }
 
 // ============================================
