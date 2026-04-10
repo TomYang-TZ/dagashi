@@ -62,7 +62,7 @@ async fn do_pull(state: State<'_, AppState>) -> Result<storage::PullMeta, String
 
     // Run the heavy work (LLM call + image download) on a background thread
     // so the UI stays responsive
-    tauri::async_runtime::spawn_blocking(move || {
+    tokio::task::spawn_blocking(move || {
         do_pull_inner(stats_snapshot, cfg)
     })
     .await
