@@ -706,22 +706,42 @@ async function updateStatusBar() {
         (stats.backspace_count || 0) + ' BACKSPACES';
     }
 
-    // Update top keys display
+    // Update keyboard heatmap
     var heatmap = document.getElementById('key-heatmap');
-    if (heatmap && stats.chars && Object.keys(stats.chars).length > 0) {
-      var sorted = Object.entries(stats.chars).sort(function(a, b) { return b[1] - a[1]; });
-      var top = sorted.slice(0, 8);
-      var maxCount = top[0] ? top[0][1] : 1;
+    if (heatmap && stats.chars) {
+      var chars = stats.chars;
+      var maxCount = 1;
+      for (var k in chars) { if (chars[k] > maxCount) maxCount = chars[k]; }
+
+      var rows = [
+        ['`','1','2','3','4','5','6','7','8','9','0','-','='],
+        ['⇥','q','w','e','r','t','y','u','i','o','p','[',']','\\'],
+        ['⇪','a','s','d','f','g','h','j','k','l',';','\'','⏎'],
+        ['⇧','z','x','c','v','b','n','m',',','.','/'],
+        ['⌃','⌥','⌘','␣','⌘','⌥']
+      ];
+      var widths = [1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1, 1,1,1,4,1,1];
+      var specialWidths = { '⇥':1.4, '⇪':1.6, '⇧':2, '⏎':1.6, '⌃':1.2, '⌥':1.2, '⌘':1.2, '␣':5, '\\':1 };
+
       var html = '';
-      for (var i = 0; i < top.length; i++) {
-        var key = top[i][0];
-        var count = top[i][1];
-        var barWidth = Math.max(2, Math.round((count / maxCount) * 60));
-        html += '<div style="display:flex;align-items:center;gap:4px;margin:1px 0">' +
-          '<span style="width:20px;text-align:right;color:var(--text)">' + key + '</span>' +
-          '<div style="width:' + barWidth + 'px;height:6px;background:var(--text);opacity:' + (count/maxCount * 0.7 + 0.3).toFixed(2) + '"></div>' +
-          '<span style="color:var(--text-dim)">' + count + '</span>' +
-          '</div>';
+      for (var r = 0; r < rows.length; r++) {
+        html += '<div style="display:flex;justify-content:center;gap:2px;margin:1px 0">';
+        for (var c = 0; c < rows[r].length; c++) {
+          var key = rows[r][c];
+          var count = chars[key] || 0;
+          var pct = maxCount > 0 ? count / maxCount : 0;
+          var w = (specialWidths[key] || 1) * 22;
+          var bg = count > 0
+            ? 'rgba(196,163,90,' + (pct * 0.7 + 0.15).toFixed(2) + ')'
+            : 'rgba(255,255,255,0.03)';
+          var color = count > 0 ? '#0a0a12' : 'var(--text-dim)';
+          var fontSize = count > 0 ? '7' : '6';
+          html += '<div style="width:' + w + 'px;height:20px;background:' + bg +
+            ';color:' + color + ';font-family:var(--pixel-font);font-size:' + fontSize +
+            'px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,0.06)" title="' +
+            key + ': ' + count + '">' + key + '</div>';
+        }
+        html += '</div>';
       }
       heatmap.innerHTML = html;
     }
