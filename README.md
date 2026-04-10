@@ -175,7 +175,7 @@ Two processes, shared filesystem:
 
 ## Why "Dagashi"?
 
-[Dagashi](https://en.wikipedia.org/wiki/Dagashi) (駄菓子) are cheap Japanese penny candies — the kind you find in corner stores for a few yen. They cost almost nothing. They serve no purpose. No one needs them.
+[Dagashi](https://en.wikipedia.org/wiki/Dagashi) (駄菓子) are cheap Japanese penny candies — the kind you find in corner stores for a few yen. They cost almost nothing.
 
 But walk into a dagashi shop and watch what happens. Kids crowd around the shelves, eyes wide, agonizing over which 10-yen candy to pick. Adults stop in and suddenly they're eight years old again. The joy is completely disproportionate to the thing itself — and that's the whole point.
 
