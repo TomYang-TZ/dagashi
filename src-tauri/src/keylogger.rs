@@ -108,7 +108,10 @@ pub fn start_capture(stats: SharedStats) {
     unsafe {
         // Listen for key down + modifier flag changes
         let event_mask: u64 = (1 << 10) | (1 << 12);
-        let tap = CGEventTapCreate(0, 0, 1, event_mask, tap_callback, std::ptr::null_mut());
+        // tap=0 (kCGHIDEventTap), place=0 (kCGHeadInsertEventTap), options=0 (kCGEventTapOptionDefault)
+        // Using options=0 instead of 1 (ListenOnly) — ListenOnly misses key-down events on newer macOS
+        // With options=0, the callback MUST return the event to avoid blocking input
+        let tap = CGEventTapCreate(0, 0, 0, event_mask, tap_callback, std::ptr::null_mut());
         if tap.is_null() {
             eprintln!("[dagashi] CGEventTapCreate failed — no Accessibility permission?");
             return;
