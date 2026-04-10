@@ -170,20 +170,18 @@ fn main() {
     // Keystroke capture — requires macOS Accessibility permission.
     // In release builds (.app), permission persists. In dev mode, the binary
     // path changes on recompile so permission is lost — use mock stats instead.
+    // Start keystroke capture — skip permission prompt, just try it.
+    // CGEventTapCreate returns null if no permission (handled gracefully).
+    // Each rebuild changes the binary signature, so re-grant permission
+    // in System Settings > Accessibility after rebuilding.
     #[cfg(not(debug_assertions))]
     if cfg.keystroke_capture.enabled {
-        if keylogger::check_and_prompt_accessibility() {
-            let stats_for_capture = shared_stats.clone();
-            keylogger::set_deaf_mode(cfg.keystroke_capture.deaf_mode);
-            std::thread::spawn(move || {
-                eprintln!("[dagashi] Starting keystroke capture...");
-                keylogger::start_capture(stats_for_capture);
-            });
-        } else {
-            eprintln!("[dagashi] No Accessibility permission — keystroke capture disabled.");
-            eprintln!("[dagashi] Grant permission: System Settings > Privacy & Security > Accessibility");
-            eprintln!("[dagashi] Then restart Dagashi.");
-        }
+        let stats_for_capture = shared_stats.clone();
+        keylogger::set_deaf_mode(cfg.keystroke_capture.deaf_mode);
+        std::thread::spawn(move || {
+            eprintln!("[dagashi] Starting keystroke capture...");
+            keylogger::start_capture(stats_for_capture);
+        });
     }
 
     #[cfg(debug_assertions)]

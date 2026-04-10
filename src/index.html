@@ -62,12 +62,9 @@
 // DAGASHI — Main App
 // ============================================
 
-// Tauri API — use window.__TAURI__ when available, mock for browser dev
-var hasTauri = !!(window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke);
-console.log('[dagashi] __TAURI__ available:', hasTauri);
-
+// Tauri API — check at call time since __TAURI__ is injected after page load
 async function invoke(cmd, args) {
-  if (hasTauri) {
+  if (window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke) {
     try {
       console.log('[dagashi] invoke ' + cmd, args);
       var result = await window.__TAURI__.core.invoke(cmd, args);
@@ -746,7 +743,7 @@ async function updateStatusBar() {
       heatmap.innerHTML = html;
     }
   } catch (err) {
-    console.error('[dagashi] status update error:', err);
+    document.getElementById('status-keys').textContent = 'ERR: ' + err;
   }
 
   var now = new Date();
