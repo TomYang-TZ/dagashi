@@ -76,6 +76,11 @@ fn load_pull_frames(date: String) -> Result<image_pipeline::PipelineResult, Stri
 }
 
 #[tauri::command]
+fn load_pull_meta(date: String) -> Result<storage::PullMeta, String> {
+    storage::load_pull_meta(&date)
+}
+
+#[tauri::command]
 async fn do_pull(state: State<'_, AppState>) -> Result<storage::PullMeta, String> {
     let stats_snapshot = state.stats.lock().unwrap().clone();
     let cfg = state.config.lock().unwrap().clone();
@@ -241,6 +246,7 @@ fn main() {
             get_collection,
             get_anime_db_status,
             load_pull_frames,
+            load_pull_meta,
             do_pull,
         ])
         .run(tauri::generate_context!())

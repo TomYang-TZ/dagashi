@@ -94,3 +94,10 @@ pub fn load_pull_frames(date: &str) -> Result<PipelineResult, String> {
     let data = fs::read_to_string(&path).map_err(|e| e.to_string())?;
     serde_json::from_str(&data).map_err(|e| e.to_string())
 }
+
+/// Load a specific pull's metadata
+pub fn load_pull_meta(date: &str) -> Result<PullMeta, String> {
+    let path = pulls_dir().join(date).join("meta.json");
+    let data = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    serde_json::from_str(&data).map_err(|e| e.to_string())
+}

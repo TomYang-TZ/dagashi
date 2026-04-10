@@ -196,13 +196,29 @@ async function initPullPage() {
 
   document.getElementById('pull-btn').addEventListener('click', doPull);
 
-  page.querySelectorAll('.mode-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      page.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+  page.querySelectorAll('.mode-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      page.querySelectorAll('.mode-btn').forEach(function(b) { b.classList.remove('active'); });
       btn.classList.add('active');
       if (currentAnimator) currentAnimator.setMode(btn.dataset.mode);
     });
   });
+
+  // Check if today's pull already exists — show it and disable pull button
+  try {
+    var today = new Date().toISOString().split('T')[0];
+    var todayMeta = await invoke('load_pull_meta', { date: today });
+    if (todayMeta) {
+      document.getElementById('pull-btn').textContent = '[ ALREADY PULLED TODAY ]';
+      document.getElementById('pull-btn').disabled = true;
+      document.getElementById('pull-btn').classList.add('loading');
+      document.getElementById('pull-status').textContent = '1 PULL PER DAY — COME BACK TOMORROW';
+      // Auto-load today's pull
+      viewPull(today);
+    }
+  } catch (e) {
+    // No pull today — button stays active
+  }
 
   updateStatusBar();
 }
@@ -330,23 +346,45 @@ async function renderGallery() {
 
 async function viewPull(date) {
   try {
-    const pipeline = await invoke('load_pull_frames', { date });
-    const stats = await invoke('get_stats');
-    const ramp = buildCharRamp(stats.chars);
+    var pipeline = await invoke('load_pull_frames', { date: date });
+    var meta = await invoke('load_pull_meta', { date: date });
+    var stats = await invoke('get_stats');
+    var ramp = buildCharRamp(stats.chars);
 
     // Switch to pull page and show the art
-    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-tab').forEach(function(t) { t.classList.remove('active'); });
+    document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
     document.querySelector('[data-page="pull"]').classList.add('active');
     document.getElementById('page-pull').classList.add('active');
 
-    const resultDiv = document.getElementById('pull-result');
+    var resultDiv = document.getElementById('pull-result');
     if (resultDiv) {
       resultDiv.classList.remove('hidden');
-      const container = document.getElementById('ascii-container');
+      var container = document.getElementById('ascii-container');
       if (currentAnimator) currentAnimator.stop();
       currentAnimator = new AsciiAnimator(container, pipeline.frames, ramp);
+
+      // Set mode based on pull's color_mode
+      var mode = meta.color_mode || 'mono';
+      document.querySelectorAll('.mode-btn').forEach(function(b) {
+        b.classList.toggle('active', b.dataset.mode === mode);
+      });
+      currentAnimator.setMode(mode);
       currentAnimator.start();
+
+      // Show result card
+      document.getElementById('result-card').innerHTML =
+        '<span class="rarity-badge rarity-' + meta.rarity + '">' + meta.rarity.toUpperCase() + '</span>' +
+        '<div class="result-character">' + meta.character + '</div>' +
+        '<div style="font-size:8px;color:var(--text-dim);margin-bottom:4px">' + (meta.anime_title || '') + ' ' + (meta.anime_rank ? '#' + meta.anime_rank : '') + '</div>' +
+        '<div class="result-flavor">"' + meta.flavor_text + '"</div>' +
+        '<div class="mt-8" style="font-size:7px;color:var(--text-dim)">' +
+        'SOURCE: ' + meta.source + ' | FRAMES: ' + meta.frame_count + ' | MODE: ' + meta.color_mode + ' | DATE: ' + meta.date +
+        '</div>';
+
+      setTimeout(function() {
+        document.getElementById('result-card').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 500);
     }
   } catch (err) {
     console.error('Failed to load pull:', err);
