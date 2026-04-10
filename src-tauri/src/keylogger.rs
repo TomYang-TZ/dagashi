@@ -145,13 +145,20 @@ pub fn start_capture(stats: SharedStats) {
     }
 
     extern "C" fn tap_callback(
-        _proxy: *mut std::ffi::c_void, _type: u32, event: *mut std::ffi::c_void, _user_info: *mut std::ffi::c_void,
+        _proxy: *mut std::ffi::c_void, event_type: u32, event: *mut std::ffi::c_void, _user_info: *mut std::ffi::c_void,
     ) -> *mut std::ffi::c_void {
+        if event.is_null() {
+            return event;
+        }
         if DEAF_MODE.load(Ordering::Relaxed) {
             return event;
         }
+        // Only process kCGEventKeyDown (10) and kCGEventFlagsChanged (12)
+        if event_type != 10 && event_type != 12 {
+            return event;
+        }
         unsafe {
-            let keycode = CGEventGetIntegerValueField(event, 9) as u16; // kCGKeyboardEventKeycode = 9
+            let keycode = CGEventGetIntegerValueField(event, 9) as u16;
             if let Some(name) = keycode_to_name(keycode) {
                 let count = KEY_COUNT.fetch_add(1, Ordering::Relaxed);
                 if count < 10 || count % 100 == 0 {

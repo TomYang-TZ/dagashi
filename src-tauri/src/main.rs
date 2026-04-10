@@ -22,7 +22,9 @@ struct AppState {
 
 #[tauri::command]
 fn get_stats(state: State<AppState>) -> stats::DailyStats {
-    state.stats.lock().unwrap().clone()
+    let s = state.stats.lock().unwrap().clone();
+    eprintln!("[dagashi] get_stats called, total: {}", s.total);
+    s
 }
 
 #[tauri::command]

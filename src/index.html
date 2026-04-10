@@ -706,19 +706,22 @@ async function updateStatusBar() {
         (stats.backspace_count || 0) + ' BACKSPACES';
     }
 
-    // Update live key heatmap
+    // Update top keys display
     var heatmap = document.getElementById('key-heatmap');
     if (heatmap && stats.chars && Object.keys(stats.chars).length > 0) {
       var sorted = Object.entries(stats.chars).sort(function(a, b) { return b[1] - a[1]; });
-      var maxCount = sorted[0] ? sorted[0][1] : 1;
+      var top = sorted.slice(0, 8);
+      var maxCount = top[0] ? top[0][1] : 1;
       var html = '';
-      for (var i = 0; i < Math.min(sorted.length, 40); i++) {
-        var key = sorted[i][0];
-        var count = sorted[i][1];
-        var pct = count / maxCount;
-        var alpha = (pct * 0.8 + 0.2).toFixed(2);
-        var size = Math.max(7, Math.round(pct * 14));
-        html += '<span style="display:inline-block;margin:2px 3px;font-size:' + size + 'px;color:rgba(196,163,90,' + alpha + ')" title="' + key + ': ' + count + '">' + key + '</span>';
+      for (var i = 0; i < top.length; i++) {
+        var key = top[i][0];
+        var count = top[i][1];
+        var barWidth = Math.max(2, Math.round((count / maxCount) * 60));
+        html += '<div style="display:flex;align-items:center;gap:4px;margin:1px 0">' +
+          '<span style="width:20px;text-align:right;color:var(--text)">' + key + '</span>' +
+          '<div style="width:' + barWidth + 'px;height:6px;background:var(--text);opacity:' + (count/maxCount * 0.7 + 0.3).toFixed(2) + '"></div>' +
+          '<span style="color:var(--text-dim)">' + count + '</span>' +
+          '</div>';
       }
       heatmap.innerHTML = html;
     }

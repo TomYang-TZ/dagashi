@@ -53,6 +53,9 @@ pub fn record_key(stats: &SharedStats, key_name: &str) {
     }
 
     s.total += 1;
+    if s.total <= 5 || s.total % 100 == 0 {
+        eprintln!("[dagashi] Stats total: {} (key: {})", s.total, key_name);
+    }
     *s.chars.entry(key_name.to_string()).or_insert(0) += 1;
 
     let hour = Local::now().hour() as usize;
