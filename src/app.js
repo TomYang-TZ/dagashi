@@ -3,27 +3,29 @@
 // ============================================
 
 // Tauri API — use window.__TAURI__ when available, mock for browser dev
-console.log('[dagashi] __TAURI__ available:', !!window.__TAURI__);
-const invoke = window.__TAURI__?.core?.invoke
-  ? async (cmd, args) => {
-      try {
-        console.log(`[dagashi] invoke ${cmd}`, args);
-        const result = await window.__TAURI__.core.invoke(cmd, args);
-        console.log(`[dagashi] ${cmd} result:`, result);
-        return result;
-      } catch (err) {
-        console.error(`[dagashi] ${cmd} error:`, err);
-        throw err;
-      }
+var hasTauri = !!(window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke);
+console.log('[dagashi] __TAURI__ available:', hasTauri);
+
+async function invoke(cmd, args) {
+  if (hasTauri) {
+    try {
+      console.log('[dagashi] invoke ' + cmd, args);
+      var result = await window.__TAURI__.core.invoke(cmd, args);
+      console.log('[dagashi] ' + cmd + ' result:', result);
+      return result;
+    } catch (err) {
+      console.error('[dagashi] ' + cmd + ' error:', err);
+      throw err;
     }
-  : async (cmd, args) => {
-  console.log(`[mock] invoke ${cmd}`, args);
-  if (cmd === 'get_stats') return mockStats();
-  if (cmd === 'get_config') return mockConfig();
-  if (cmd === 'get_collection') return { pulls: [], unique_characters: {} };
-  if (cmd === 'toggle_deaf_mode') return false;
-  return null;
-});
+  } else {
+    console.log('[mock] invoke ' + cmd, args);
+    if (cmd === 'get_stats') return mockStats();
+    if (cmd === 'get_config') return mockConfig();
+    if (cmd === 'get_collection') return { pulls: [], unique_characters: {} };
+    if (cmd === 'toggle_deaf_mode') return false;
+    return null;
+  }
+}
 
 // ============================================
 // ASCII RENDERER
