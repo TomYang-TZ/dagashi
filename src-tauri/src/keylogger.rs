@@ -132,9 +132,10 @@ pub fn start_capture(stats: SharedStats) {
     extern "C" {
         fn CGEventTapCreate(
             tap: u32, place: u32, options: u32, events_of_interest: u64,
-            callback: extern "C" fn(u64, u32, *mut std::ffi::c_void, *mut std::ffi::c_void) -> *mut std::ffi::c_void,
+            callback: extern "C" fn(*mut std::ffi::c_void, u32, *mut std::ffi::c_void, *mut std::ffi::c_void) -> *mut std::ffi::c_void,
             user_info: *mut std::ffi::c_void,
         ) -> *mut std::ffi::c_void;
+        fn CGEventTapEnable(tap: *mut std::ffi::c_void, enable: bool);
         fn CFMachPortCreateRunLoopSource(alloc: *const std::ffi::c_void, port: *mut std::ffi::c_void, order: i64) -> *mut std::ffi::c_void;
         fn CFRunLoopAddSource(rl: *mut std::ffi::c_void, source: *mut std::ffi::c_void, mode: *const std::ffi::c_void);
         fn CFRunLoopGetCurrent() -> *mut std::ffi::c_void;
@@ -144,7 +145,7 @@ pub fn start_capture(stats: SharedStats) {
     }
 
     extern "C" fn tap_callback(
-        _proxy: u64, _type: u32, event: *mut std::ffi::c_void, _user_info: *mut std::ffi::c_void,
+        _proxy: *mut std::ffi::c_void, _type: u32, event: *mut std::ffi::c_void, _user_info: *mut std::ffi::c_void,
     ) -> *mut std::ffi::c_void {
         if DEAF_MODE.load(Ordering::Relaxed) {
             return event;
@@ -167,7 +168,11 @@ pub fn start_capture(stats: SharedStats) {
     unsafe {
         // kCGHIDEventTap=0, kCGHeadInsertEventTap=0, kCGEventTapOptionListenOnly=1
         // CGEventMaskBit(kCGEventKeyDown=10) = 1 << 10 = 1024
-        let tap = CGEventTapCreate(0, 0, 1, 1 << 10, tap_callback, std::ptr::null_mut());
+        // kCGHIDEventTap=0, kCGHeadInsertEventTap=0, kCGEventTapOptionListenOnly=1
+        // CGEventMaskBit(kCGEventKeyDown=10) = 1 << 10
+        // Also listen for kCGEventFlagsChanged=12 (modifier keys) = 1 << 12
+        let event_mask: u64 = (1 << 10) | (1 << 12);
+        let tap = CGEventTapCreate(0, 0, 1, event_mask, tap_callback, std::ptr::null_mut());
         if tap.is_null() {
             eprintln!("[dagashi] CGEventTapCreate failed — no Accessibility permission?");
             return;
@@ -175,7 +180,8 @@ pub fn start_capture(stats: SharedStats) {
         let source = CFMachPortCreateRunLoopSource(std::ptr::null(), tap, 0);
         let run_loop = CFRunLoopGetCurrent();
         CFRunLoopAddSource(run_loop, source, kCFRunLoopCommonModes);
-        eprintln!("[dagashi] CGEventTap installed, listening for keys...");
+        CGEventTapEnable(tap, true);
+        eprintln!("[dagashi] CGEventTap installed and enabled, listening for keys...");
         CFRunLoopRun(); // blocks forever
     }
 }
