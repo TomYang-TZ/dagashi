@@ -170,7 +170,7 @@ fn main() {
     // path changes on recompile so permission is lost — use mock stats instead.
     #[cfg(not(debug_assertions))]
     if cfg.keystroke_capture.enabled {
-        if keylogger::has_accessibility_permission() {
+        if keylogger::check_and_prompt_accessibility() {
             let stats_for_capture = shared_stats.clone();
             keylogger::set_deaf_mode(cfg.keystroke_capture.deaf_mode);
             std::thread::spawn(move || {
