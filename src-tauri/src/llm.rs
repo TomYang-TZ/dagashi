@@ -20,6 +20,7 @@ const JSON_SCHEMA: &str = r#"{"type":"object","properties":{"character":{"type":
 pub fn select_character(
     stats: &DailyStats,
     rarity: &Rarity,
+    anime_title: &str,
     recent_pulls: &[String],
     config: &LlmConfig,
 ) -> Result<CharacterSelection, String> {
@@ -31,27 +32,24 @@ pub fn select_character(
     };
 
     let prompt = format!(
-        r#"You are the Dagashi oracle for the anime Gintama.
+        r#"You are the Dagashi oracle — an anime gacha fortune teller.
 
-Based on these keystroke stats from today, pick a Gintama character and scene.
+ANIME: {anime_title}
+RARITY TIER: {rarity} (more popular anime = rarer pull)
 
-RARITY TIER ROLLED: {rarity}
+Based on these keystroke stats, pick a CHARACTER from {anime_title} and a specific SCENE or POSE.
 
 KEYSTROKE STATS:
 {stats_json}
 
-TIER GUIDANCE:
-- Common: Background Edo citizens, Justaway, Elizabeth idle
-- Uncommon: Shinpachi, Otae, Hasegawa (MADAO)
-- Rare: Kagura, Sadaharu, Kondo, Otose
-- Epic: Gintoki, Hijikata, Okita, Takasugi
-- Legendary: Iconic scenes — Gintoki vs Takasugi, Shiroyasha mode, Kagura Yato form
-
 RECENT PULLS (avoid repeating): {recent}
 
-Interpret the typing personality from the stats. Pick a character matching the tier.
-The search_query should work well for finding a GIF on Giphy.
-The flavor_text should be a fun 1-2 sentence "reading" of their typing personality."#,
+Rules:
+- Pick a well-known character from this specific anime
+- The scene should be iconic or funny — something fans would recognize
+- The search_query should work well for finding a GIF on Giphy (include anime name + character name)
+- The flavor_text should be a fun 1-2 sentence "reading" connecting the user's typing personality to the character
+- Keep it playful and surprising"#,
         rarity = rarity.label(),
     );
 

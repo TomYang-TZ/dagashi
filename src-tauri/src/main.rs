@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod anime_db;
 mod config;
 mod gacha;
 mod giphy;
@@ -16,6 +17,7 @@ use tauri::State;
 struct AppState {
     stats: stats::SharedStats,
     config: Mutex<config::Config>,
+    anime_db: Mutex<anime_db::AnimeDb>,
 }
 
 #[tauri::command]
@@ -59,11 +61,12 @@ fn load_pull_frames(date: String) -> Result<image_pipeline::PipelineResult, Stri
 async fn do_pull(state: State<'_, AppState>) -> Result<storage::PullMeta, String> {
     let stats_snapshot = state.stats.lock().unwrap().clone();
     let cfg = state.config.lock().unwrap().clone();
+    let db = state.anime_db.lock().unwrap().clone();
 
     // Run the heavy work (LLM call + image download) on a background thread
     // so the UI stays responsive
     tokio::task::spawn_blocking(move || {
-        do_pull_inner(stats_snapshot, cfg)
+        do_pull_inner(stats_snapshot, cfg, db)
     })
     .await
     .map_err(|e| format!("pull task failed: {e}"))?
@@ -72,24 +75,32 @@ async fn do_pull(state: State<'_, AppState>) -> Result<storage::PullMeta, String
 fn do_pull_inner(
     stats_snapshot: stats::DailyStats,
     cfg: config::Config,
+    db: anime_db::AnimeDb,
 ) -> Result<storage::PullMeta, String> {
 
     // 1. Roll rarity
     let rarity = gacha::roll_rarity(stats_snapshot.total, &cfg.rarity_thresholds);
+    eprintln!("[dagashi] Rolled rarity: {}", rarity.label());
 
-    // 2. Select character via LLM
+    // 2. Pick anime from the database based on rarity
+    let stats_seed = stats_snapshot.total;
+    let anime = anime_db::pick_anime(&db, &rarity, stats_seed)
+        .ok_or("no anime found for this rarity tier")?;
+    eprintln!("[dagashi] Picked anime: {} (rank {})", anime.title, anime.popularity_rank);
+
+    // 3. Select character via LLM
     let recent = storage::recent_pull_names(10);
-    let selection = llm::select_character(&stats_snapshot, &rarity, &recent, &cfg.llm)?;
+    let selection = llm::select_character(
+        &stats_snapshot, &rarity, &anime.title, &recent, &cfg.llm
+    )?;
+    eprintln!("[dagashi] LLM picked: {} - {}", selection.character, selection.scene);
 
-    // 3. Determine color mode
+    // 4. Determine color mode
     let color_mode = if rand::random::<f64>() < cfg.ascii.color_probability {
         "color"
     } else {
         "mono"
     };
-
-    // 4. Build stats seed for deterministic image selection
-    let stats_seed = stats_snapshot.total;
 
     // 5. Fetch and process image
     let pipeline = image_pipeline::fetch_frames(
@@ -99,6 +110,7 @@ fn do_pull_inner(
         cfg.giphy_api_key.as_deref(),
         stats_seed,
     )?;
+    eprintln!("[dagashi] Got {} frames from {}", pipeline.frames.len(), pipeline.source);
 
     // 6. Save pull
     let meta = storage::PullMeta {
@@ -110,6 +122,8 @@ fn do_pull_inner(
         source: pipeline.source.clone(),
         color_mode: color_mode.to_string(),
         frame_count: pipeline.frames.len(),
+        anime_title: anime.title.clone(),
+        anime_rank: anime.popularity_rank,
     };
 
     storage::save_pull(&meta, &pipeline)?;
@@ -156,6 +170,13 @@ fn main() {
         }
     }
 
+    // Load anime database (fetches from Jikan API if cache is stale)
+    let db = anime_db::load_or_fetch().unwrap_or_else(|e| {
+        eprintln!("[dagashi] Failed to load anime db: {e}, using empty db");
+        anime_db::AnimeDb { anime: vec![], fetched_at: String::new() }
+    });
+    eprintln!("[dagashi] Anime DB: {} entries", db.anime.len());
+
     // Periodic stats save (every 5 minutes)
     let stats_for_save = shared_stats.clone();
     std::thread::spawn(move || loop {
@@ -169,6 +190,7 @@ fn main() {
         .manage(AppState {
             stats: shared_stats,
             config: Mutex::new(cfg),
+            anime_db: Mutex::new(db),
         })
         .invoke_handler(tauri::generate_handler![
             get_stats,

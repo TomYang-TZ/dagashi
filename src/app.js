@@ -266,6 +266,7 @@ async function doPull() {
     document.getElementById('result-card').innerHTML = `
       <span class="rarity-badge rarity-${meta.rarity}">${meta.rarity.toUpperCase()}</span>
       <div class="result-character">${meta.character}</div>
+      <div style="font-size:8px;color:var(--text-dim);margin-bottom:4px">${meta.anime_title || ''} ${meta.anime_rank ? '#' + meta.anime_rank : ''}</div>
       <div class="result-flavor">"${meta.flavor_text}"</div>
       <div class="mt-8" style="font-size:7px;color:var(--text-dim)">
         SOURCE: ${meta.source} | FRAMES: ${meta.frame_count} | MODE: ${meta.color_mode}
