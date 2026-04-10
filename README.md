@@ -24,14 +24,24 @@ It is completely, utterly, magnificently **useless**.
 
 <table align="center">
 <tr>
-<td align="center"><strong>mono</strong></td>
-<td align="center"><strong>color</strong></td>
+<td align="center"><strong>Gintoki — mono</strong></td>
+<td align="center"><strong>Gintoki — color</strong></td>
 </tr>
 <tr>
-<td><img src="assets/dagashi-demo.gif" alt="Monochrome ASCII art animation" width="360"></td>
-<td><img src="assets/dagashi-color.gif" alt="Color ASCII art animation" width="360"></td>
+<td><img src="assets/dagashi-demo.gif" alt="Gintoki monochrome ASCII art" width="360"></td>
+<td><img src="assets/dagashi-color.gif" alt="Gintoki color ASCII art" width="360"></td>
+</tr>
+<tr>
+<td align="center"><strong>Kagura — mono</strong></td>
+<td align="center"><strong>Kagura — color</strong></td>
+</tr>
+<tr>
+<td><img src="assets/kagura-mono.gif" alt="Kagura monochrome ASCII art" width="360"></td>
+<td><img src="assets/kagura-color.gif" alt="Kagura color ASCII art" width="360"></td>
 </tr>
 </table>
+
+<p align="center"><em>ASCII art rendered using your actual keystroke characters — <code>e t a o i n s r</code> become your pixels</em></p>
 
 ## How It Works
 
