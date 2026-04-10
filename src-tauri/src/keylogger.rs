@@ -7,6 +7,20 @@ use crate::stats::{self, SharedStats};
 /// If not granted, shows the macOS permission dialog prompting the user.
 #[cfg(target_os = "macos")]
 pub fn check_and_prompt_accessibility() -> bool {
+    #[link(name = "ApplicationServices", kind = "framework")]
+    extern "C" {
+        fn AXIsProcessTrusted() -> bool;
+    }
+
+    // First check without prompting
+    let trusted = unsafe { AXIsProcessTrusted() };
+    if trusted {
+        return true;
+    }
+
+    // Not trusted — show the prompt dialog
+    eprintln!("[dagashi] Not trusted, showing Accessibility permission dialog...");
+
     #[link(name = "CoreFoundation", kind = "framework")]
     extern "C" {
         fn CFStringCreateWithCString(alloc: *const std::ffi::c_void, c_str: *const i8, encoding: u32) -> *const std::ffi::c_void;
@@ -23,20 +37,17 @@ pub fn check_and_prompt_accessibility() -> bool {
         static kCFTypeDictionaryValueCallBacks: std::ffi::c_void;
     }
 
-    #[link(name = "ApplicationServices", kind = "framework")]
     extern "C" {
         fn AXIsProcessTrustedWithOptions(options: *const std::ffi::c_void) -> bool;
     }
 
     unsafe {
-        // Create the key string "AXTrustedCheckOptionPrompt"
         let key_str = CFStringCreateWithCString(
             std::ptr::null(),
             b"AXTrustedCheckOptionPrompt\0".as_ptr() as *const i8,
-            0x08000100, // kCFStringEncodingUTF8
+            0x08000100,
         );
 
-        // Create dict { AXTrustedCheckOptionPrompt: true } to show the prompt
         let keys = [key_str];
         let values = [kCFBooleanTrue];
         let options = CFDictionaryCreate(
