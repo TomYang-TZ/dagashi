@@ -41,6 +41,9 @@
     <div id="page-settings" class="page"></div>
   </main>
 
+  <!-- Debug bar (visible in dev) -->
+  <div id="debug-bar" style="position:fixed;top:0;left:0;right:0;background:#300;color:#f88;font:10px monospace;padding:2px 8px;z-index:10000;display:none"></div>
+
   <!-- Status bar -->
   <footer id="status-bar">
     <span id="status-keys">KEYS: 0</span>
@@ -63,19 +66,28 @@
 // ============================================
 
 // Tauri API — check at call time since __TAURI__ is injected after page load
+function debugLog(msg) {
+  var bar = document.getElementById('debug-bar');
+  if (bar) {
+    bar.style.display = 'block';
+    bar.textContent = msg;
+  }
+}
+
 async function invoke(cmd, args) {
   if (window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke) {
     try {
-      console.log('[dagashi] invoke ' + cmd, args);
       var result = await window.__TAURI__.core.invoke(cmd, args);
-      console.log('[dagashi] ' + cmd + ' result:', result);
+      if (cmd === 'get_stats') {
+        debugLog('TAURI OK | get_stats total=' + result.total + ' chars=' + Object.keys(result.chars).length);
+      }
       return result;
     } catch (err) {
-      console.error('[dagashi] ' + cmd + ' error:', err);
+      debugLog('TAURI ERR ' + cmd + ': ' + err);
       throw err;
     }
   } else {
-    console.log('[mock] invoke ' + cmd, args);
+    debugLog('NO TAURI — using mock data. __TAURI__=' + (typeof window.__TAURI__));
     if (cmd === 'get_stats') return mockStats();
     if (cmd === 'get_config') return mockConfig();
     if (cmd === 'get_collection') return { pulls: [], unique_characters: {} };
