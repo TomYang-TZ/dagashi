@@ -92,24 +92,44 @@ pub fn load_or_fetch() -> Result<AnimeDb, String> {
 
 fn fetch_from_jikan() -> Result<AnimeDb, String> {
     let mut all_anime = Vec::new();
-    let client = reqwest::blocking::Client::new();
+    let client = reqwest::blocking::Client::builder()
+        .user_agent("Dagashi/0.1.0")
+        .build()
+        .map_err(|e| e.to_string())?;
 
     for page in 1..=PAGES_TO_FETCH {
         let url = format!(
             "{JIKAN_TOP_URL}?type=tv&filter=bypopularity&limit=25&page={page}"
         );
 
+        eprintln!("[dagashi] Fetching anime page {page}/{PAGES_TO_FETCH}...");
         let resp = client
             .get(&url)
             .timeout(std::time::Duration::from_secs(15))
             .send()
             .map_err(|e| format!("jikan request failed (page {page}): {e}"))?;
 
-        let body: serde_json::Value = resp.json().map_err(|e| e.to_string())?;
-        let data = body
-            .get("data")
-            .and_then(|d| d.as_array())
-            .ok_or("no data array in jikan response")?;
+        let status = resp.status();
+        if !status.is_success() {
+            // Jikan returns 429 when rate limited — wait and retry
+            if status.as_u16() == 429 {
+                eprintln!("[dagashi] Rate limited, waiting 2s...");
+                std::thread::sleep(std::time::Duration::from_secs(2));
+                continue;
+            }
+            return Err(format!("jikan returned status {status} on page {page}"));
+        }
+
+        let body: serde_json::Value = resp.json().map_err(|e| format!("json parse error page {page}: {e}"))?;
+        let data = match body.get("data").and_then(|d| d.as_array()) {
+            Some(d) => d,
+            None => {
+                eprintln!("[dagashi] No data on page {page}, response: {}", &body.to_string()[..200.min(body.to_string().len())]);
+                // Jikan sometimes returns errors — skip page and continue
+                std::thread::sleep(std::time::Duration::from_secs(1));
+                continue;
+            }
+        };
 
         for entry in data {
             let title = entry
