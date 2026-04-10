@@ -1,5 +1,6 @@
 <p align="center">
-  <img src="assets/dagashi-demo.gif" alt="Dagashi — Animated ASCII art from your keystrokes" width="600">
+  <img src="assets/dagashi-demo.gif" alt="Dagashi mono ASCII art" width="400">
+  <img src="assets/dagashi-color.gif" alt="Dagashi color ASCII art" width="400">
 </p>
 
 <h1 align="center">D A G A S H I</h1>
