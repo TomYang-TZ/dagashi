@@ -4,37 +4,42 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dagashi</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; }
-    html, body {
-      background: #0a0a12;
-      color: #ddd8d0;
-      font-family: Menlo, Monaco, monospace;
-      min-height: 100vh;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
-    pre {
-      font-size: 14px;
-      line-height: 1.4;
-      color: rgba(196,163,90,0.8);
-    }
-  </style>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <pre>
-┌─────────────────────────────────┐
-│                                 │
-│     ╔═╗╔═╗╔═╗╔═╗╔═╗╦ ╦╦       │
-│     ╠╦╝╠═╣║ ╦╠═╣╚═╗╠═╣║       │
-│     ╩╚═╩ ╩╚═╝╩ ╩╚═╝╩ ╩╩       │
-│                                 │
-│   ~ your keystrokes, digested  ~│
-│                                 │
-│        [ loading... ]           │
-│                                 │
-└─────────────────────────────────┘
-  </pre>
+  <!-- CRT overlay -->
+  <div class="crt-overlay"></div>
+
+  <!-- Nav bar -->
+  <nav id="nav">
+    <span class="nav-logo">DAGASHI</span>
+    <div class="nav-tabs">
+      <button class="nav-tab active" data-page="pull">PULL</button>
+      <button class="nav-tab" data-page="gallery">GALLERY</button>
+      <button class="nav-tab" data-page="collection">ROSTER</button>
+      <button class="nav-tab" data-page="settings">SETTINGS</button>
+    </div>
+    <button id="deaf-toggle" class="nav-btn" title="Toggle deaf mode">
+      <span id="deaf-icon">&#x1F442;</span>
+    </button>
+  </nav>
+
+  <!-- Pages -->
+  <main id="app">
+    <div id="page-pull" class="page active"></div>
+    <div id="page-gallery" class="page"></div>
+    <div id="page-collection" class="page"></div>
+    <div id="page-settings" class="page"></div>
+  </main>
+
+  <!-- Status bar -->
+  <footer id="status-bar">
+    <span id="status-keys">KEYS: 0</span>
+    <span id="status-deaf"></span>
+    <span id="status-time"></span>
+  </footer>
+
+  <script src="app.js" type="module"></script>
 </body>
 </html>
