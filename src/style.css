@@ -98,19 +98,73 @@ nav {
   background: rgba(196, 163, 90, 0.08);
 }
 
+.deaf-wrapper {
+  position: relative;
+}
+
 .nav-btn {
   background: transparent;
   border: 2px solid var(--border);
   color: var(--text);
-  font-size: 14px;
-  padding: 4px 8px;
+  font-size: 12px;
+  padding: 4px 10px;
   cursor: pointer;
   line-height: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+
+#deaf-label {
+  font-family: var(--pixel-font);
+  font-size: 6px;
+  letter-spacing: 1px;
+}
+
+.nav-btn:hover {
+  border-color: var(--text-dim);
+  background: rgba(196, 163, 90, 0.05);
 }
 
 .nav-btn.deaf {
   border-color: #f44;
   color: #f44;
+  background: rgba(255, 68, 68, 0.08);
+}
+
+.deaf-tooltip {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  background: var(--bg-panel);
+  border: 2px solid var(--text-dim);
+  padding: 8px 12px;
+  font-family: var(--pixel-font);
+  font-size: 6px;
+  line-height: 2;
+  color: var(--text);
+  white-space: nowrap;
+  z-index: 200;
+  letter-spacing: 0.5px;
+}
+
+.deaf-tooltip::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  right: 12px;
+  width: 8px;
+  height: 8px;
+  background: var(--bg-panel);
+  border-top: 2px solid var(--text-dim);
+  border-left: 2px solid var(--text-dim);
+  transform: rotate(45deg);
+}
+
+.deaf-wrapper:hover .deaf-tooltip {
+  display: block;
 }
 
 /* ============ PAGES ============ */

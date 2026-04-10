@@ -453,8 +453,10 @@ document.getElementById('deaf-toggle').addEventListener('click', async () => {
   const isDeaf = await invoke('toggle_deaf_mode');
   const btn = document.getElementById('deaf-toggle');
   const icon = document.getElementById('deaf-icon');
+  const label = document.getElementById('deaf-label');
   btn.classList.toggle('deaf', isDeaf);
   icon.textContent = isDeaf ? '\u{1F6AB}' : '\u{1F442}';
+  label.textContent = isDeaf ? 'DEAF' : 'LISTENING';
   document.getElementById('status-deaf').textContent = isDeaf ? '| DEAF' : '';
 });
 
