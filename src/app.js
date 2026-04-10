@@ -276,6 +276,11 @@ async function doPull() {
     `;
 
     btn.textContent = '[ PULL AGAIN ]';
+
+    // Scroll to result card so it's visible
+    setTimeout(function() {
+      document.getElementById('result-card').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 500);
   } catch (err) {
     clearInterval(loadingInterval);
     status.textContent = `ERROR: ${err}`;

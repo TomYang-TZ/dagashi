@@ -223,8 +223,9 @@ nav {
   padding: 12px;
   border: 2px solid var(--border);
   background: rgba(0, 0, 0, 0.4);
-  overflow-x: auto;
+  overflow: auto;
   position: relative;
+  max-height: 60vh;
 }
 
 .ascii-art {
