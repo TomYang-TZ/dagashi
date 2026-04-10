@@ -165,18 +165,24 @@ fn main() {
     let shared_stats = stats::new_shared();
     eprintln!("[dagashi] Stats initialized");
 
-    // Keystroke capture requires macOS Accessibility permission.
-    // Disabled for now — rdev::listen crashes the process (exit 133) even
-    // with Terminal in Accessibility list. The binary path changes on each
-    // recompile so macOS doesn't recognize it. Will fix with a proper
-    // permission check or by using a stable binary path.
-    // TODO: re-enable once permission flow is solved
-    eprintln!("[dagashi] Keystroke capture skipped (permission flow WIP)");
-    // Inject mock stats so pulls work during development
+    // Keystroke capture — requires macOS Accessibility permission.
+    // In release builds (.app), permission persists. In dev mode, the binary
+    // path changes on recompile so permission is lost — use mock stats instead.
+    #[cfg(not(debug_assertions))]
+    if cfg.keystroke_capture.enabled {
+        let stats_for_capture = shared_stats.clone();
+        keylogger::set_deaf_mode(cfg.keystroke_capture.deaf_mode);
+        std::thread::spawn(move || {
+            eprintln!("[dagashi] Starting keystroke capture...");
+            keylogger::start_capture(stats_for_capture);
+        });
+    }
+
+    #[cfg(debug_assertions)]
     {
+        eprintln!("[dagashi] DEV MODE: keystroke capture disabled, using mock stats");
         let mut s = shared_stats.lock().unwrap();
         if s.total == 0 {
-            eprintln!("[dagashi] Injecting mock keystroke data for testing");
             s.total = 8500;
             for (ch, count) in [("e",890),("t",720),("a",680),("o",590),("i",510),
                 ("n",480),("s",440),("r",410),("h",320),("l",280),("d",250),
