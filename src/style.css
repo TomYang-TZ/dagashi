@@ -219,19 +219,18 @@ nav {
 
 /* ASCII art display */
 .ascii-display {
-  margin-top: 20px;
-  padding: 12px;
+  margin-top: 12px;
+  padding: 8px;
   border: 2px solid var(--border);
   background: rgba(0, 0, 0, 0.4);
-  overflow: auto;
+  overflow: hidden;
   position: relative;
-  max-height: 60vh;
 }
 
 .ascii-art {
   font-family: var(--mono-font);
-  font-size: 11px;
-  line-height: 13px;
+  font-size: 7px;
+  line-height: 8px;
   white-space: pre;
   text-align: center;
 }
