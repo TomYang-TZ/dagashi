@@ -129,14 +129,31 @@ fn main() {
     eprintln!("[dagashi] Stats initialized");
 
     // Keystroke capture requires macOS Accessibility permission.
-    if cfg.keystroke_capture.enabled {
-        let stats_for_capture = shared_stats.clone();
-        keylogger::set_deaf_mode(cfg.keystroke_capture.deaf_mode);
-        std::thread::spawn(move || {
-            eprintln!("[dagashi] Starting keystroke capture...");
-            keylogger::start_capture(stats_for_capture);
-            eprintln!("[dagashi] Keystroke capture ended.");
-        });
+    // Disabled for now — rdev::listen crashes the process (exit 133) even
+    // with Terminal in Accessibility list. The binary path changes on each
+    // recompile so macOS doesn't recognize it. Will fix with a proper
+    // permission check or by using a stable binary path.
+    // TODO: re-enable once permission flow is solved
+    eprintln!("[dagashi] Keystroke capture skipped (permission flow WIP)");
+    // Inject mock stats so pulls work during development
+    {
+        let mut s = shared_stats.lock().unwrap();
+        if s.total == 0 {
+            eprintln!("[dagashi] Injecting mock keystroke data for testing");
+            s.total = 8500;
+            for (ch, count) in [("e",890),("t",720),("a",680),("o",590),("i",510),
+                ("n",480),("s",440),("r",410),("h",320),("l",280),("d",250),
+                ("c",220),("u",200),("m",180),("f",150),("p",130),("g",110),
+                ("w",100),("y",90),("b",80),("v",60),("k",50),("j",30),("x",20)] {
+                s.chars.insert(ch.to_string(), count as u64);
+            }
+            s.categories.letter = 7400;
+            s.categories.number = 500;
+            s.categories.symbol = 400;
+            s.categories.modifier = 200;
+            s.backspace_count = 320;
+            s.shift_count = 180;
+        }
     }
 
     // Periodic stats save (every 5 minutes)
