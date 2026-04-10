@@ -17,7 +17,7 @@ use tauri::State;
 struct AppState {
     stats: stats::SharedStats,
     config: Mutex<config::Config>,
-    anime_db: Mutex<anime_db::AnimeDb>,
+    anime_db: std::sync::Arc<Mutex<anime_db::AnimeDb>>,
 }
 
 #[tauri::command]
@@ -50,6 +50,22 @@ fn toggle_deaf_mode(state: State<AppState>) -> bool {
 #[tauri::command]
 fn get_collection() -> storage::Collection {
     storage::load_collection()
+}
+
+#[tauri::command]
+fn get_anime_db_status(state: State<AppState>) -> serde_json::Value {
+    let db = state.anime_db.lock().unwrap();
+    serde_json::json!({
+        "count": db.anime.len(),
+        "fetched_at": db.fetched_at,
+        "sample": db.anime.iter().take(10).map(|a| {
+            serde_json::json!({
+                "title": a.title,
+                "rank": a.popularity_rank,
+                "rarity": crate::anime_db::rank_to_rarity(a.popularity_rank).label(),
+            })
+        }).collect::<Vec<_>>(),
+    })
 }
 
 #[tauri::command]
@@ -170,12 +186,35 @@ fn main() {
         }
     }
 
-    // Load anime database (fetches from Jikan API if cache is stale)
-    let db = anime_db::load_or_fetch().unwrap_or_else(|e| {
-        eprintln!("[dagashi] Failed to load anime db: {e}, using empty db");
+    // Start with empty anime DB — load in background so app opens instantly
+    let shared_anime_db = std::sync::Arc::new(Mutex::new(
         anime_db::AnimeDb { anime: vec![], fetched_at: String::new() }
+    ));
+
+    // Try loading from cache first (instant), then refresh from API in background
+    {
+        let cache_path = config::data_dir().join("anime_db.json");
+        if cache_path.exists() {
+            if let Ok(data) = std::fs::read_to_string(&cache_path) {
+                if let Ok(db) = serde_json::from_str::<anime_db::AnimeDb>(&data) {
+                    eprintln!("[dagashi] Loaded {} anime from cache", db.anime.len());
+                    *shared_anime_db.lock().unwrap() = db;
+                }
+            }
+        }
+    }
+
+    // Background fetch from Jikan API (refreshes cache if stale)
+    let db_for_fetch = shared_anime_db.clone();
+    std::thread::spawn(move || {
+        match anime_db::load_or_fetch() {
+            Ok(db) => {
+                eprintln!("[dagashi] Anime DB ready: {} entries", db.anime.len());
+                *db_for_fetch.lock().unwrap() = db;
+            }
+            Err(e) => eprintln!("[dagashi] Anime DB fetch failed: {e}"),
+        }
     });
-    eprintln!("[dagashi] Anime DB: {} entries", db.anime.len());
 
     // Periodic stats save (every 5 minutes)
     let stats_for_save = shared_stats.clone();
@@ -190,7 +229,7 @@ fn main() {
         .manage(AppState {
             stats: shared_stats,
             config: Mutex::new(cfg),
-            anime_db: Mutex::new(db),
+            anime_db: shared_anime_db,
         })
         .invoke_handler(tauri::generate_handler![
             get_stats,
@@ -198,6 +237,7 @@ fn main() {
             save_config_cmd,
             toggle_deaf_mode,
             get_collection,
+            get_anime_db_status,
             load_pull_frames,
             do_pull,
         ])

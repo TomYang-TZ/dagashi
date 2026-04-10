@@ -347,62 +347,129 @@ async function viewPull(date) {
 }
 
 // ============================================
-// COLLECTION PAGE
+// COLLECTION / ANIME DATABASE PAGE
 // ============================================
 
-const ROSTER = [
-  { name: 'Justaway', tier: 'common' },
-  { name: 'Elizabeth', tier: 'common' },
-  { name: 'Edo Citizen', tier: 'common' },
-  { name: 'Shinpachi Shimura', tier: 'uncommon' },
-  { name: 'Otae Shimura', tier: 'uncommon' },
-  { name: 'Hasegawa (MADAO)', tier: 'uncommon' },
-  { name: 'Kagura', tier: 'rare' },
-  { name: 'Sadaharu', tier: 'rare' },
-  { name: 'Isao Kondo', tier: 'rare' },
-  { name: 'Otose', tier: 'rare' },
-  { name: 'Gintoki Sakata', tier: 'epic' },
-  { name: 'Toshiro Hijikata', tier: 'epic' },
-  { name: 'Sougo Okita', tier: 'epic' },
-  { name: 'Shinsuke Takasugi', tier: 'epic' },
-  { name: 'Shiroyasha', tier: 'legendary' },
-  { name: 'Yato Kagura', tier: 'legendary' },
-  { name: 'Gintoki vs Takasugi', tier: 'legendary' },
-];
+var animeDbPollInterval = null;
 
 async function renderCollection() {
-  const collection = await invoke('get_collection');
-  const page = document.getElementById('page-collection');
+  var page = document.getElementById('page-collection');
 
-  const collected = collection.unique_characters || {};
-  const collectedCount = Object.keys(collected).length;
-  const totalCount = ROSTER.length;
-  const pct = totalCount > 0 ? Math.round((collectedCount / totalCount) * 100) : 0;
-
-  let html = `
-    <div class="roster-progress">
-      COLLECTED: ${collectedCount} / ${totalCount} (${pct}%)
-      <div class="progress-bar">
-        <div class="progress-fill" style="width:${pct}%"></div>
-      </div>
-    </div>
-    <div class="roster-grid">
-  `;
-
-  for (const entry of ROSTER) {
-    const count = collected[entry.name] || 0;
-    const cls = count > 0 ? 'collected' : 'uncollected';
-    html += `
-      <div class="roster-card ${cls}">
-        <span class="rarity-badge rarity-${entry.tier}">${entry.tier.toUpperCase()}</span>
-        <div class="roster-name">${count > 0 ? entry.name : '???'}</div>
-        <div class="roster-count">${count > 0 ? `x${count}` : ''}</div>
-      </div>
-    `;
+  // Get anime DB status and collection
+  var dbStatus, collection;
+  try {
+    dbStatus = await invoke('get_anime_db_status');
+    collection = await invoke('get_collection');
+  } catch (err) {
+    page.innerHTML = '<div style="color:var(--text-dim);font-size:8px;padding:16px">LOADING...</div>';
+    return;
   }
 
+  var collected = collection.unique_characters || {};
+  var collectedAnime = collection.pulls ? [...new Set(collection.pulls.map(function(p) { return p.anime_title; }))] : [];
+  var totalAnime = dbStatus.count || 0;
+  var loading = totalAnime === 0;
+
+  var html = '';
+
+  // Stats bar
+  html += '<div class="roster-progress">';
+  if (loading) {
+    html += 'LOADING ANIME DATABASE... <span id="db-count">0</span> LOADED';
+  } else {
+    html += 'ANIME DATABASE: ' + totalAnime + ' SHOWS | PULLED FROM: ' + collectedAnime.length;
+  }
+  html += '<div class="progress-bar"><div class="progress-fill" style="width:' + Math.min(100, (totalAnime / 1000) * 100) + '%"></div></div>';
   html += '</div>';
+
+  // Rarity filter tabs
+  html += '<div class="mode-toggle mt-8">';
+  html += '<button class="mode-btn active" data-filter="all">ALL</button>';
+  html += '<button class="mode-btn" data-filter="legendary">LEGENDARY</button>';
+  html += '<button class="mode-btn" data-filter="epic">EPIC</button>';
+  html += '<button class="mode-btn" data-filter="rare">RARE</button>';
+  html += '<button class="mode-btn" data-filter="uncommon">UNCOMMON</button>';
+  html += '<button class="mode-btn" data-filter="common">COMMON</button>';
+  html += '</div>';
+
+  // Anime grid
+  html += '<div class="roster-grid mt-8" id="anime-grid">';
+  html += renderAnimeGrid(dbStatus, collectedAnime, 'all');
+  html += '</div>';
+
   page.innerHTML = html;
+
+  // Filter buttons
+  page.querySelectorAll('[data-filter]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      page.querySelectorAll('[data-filter]').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      document.getElementById('anime-grid').innerHTML = renderAnimeGrid(dbStatus, collectedAnime, btn.dataset.filter);
+    });
+  });
+
+  // Poll for DB updates if still loading
+  if (loading && !animeDbPollInterval) {
+    animeDbPollInterval = setInterval(async function() {
+      try {
+        var s = await invoke('get_anime_db_status');
+        if (s.count > 0) {
+          clearInterval(animeDbPollInterval);
+          animeDbPollInterval = null;
+          renderCollection(); // re-render with full data
+        } else {
+          var el = document.getElementById('db-count');
+          if (el) el.textContent = s.count;
+        }
+      } catch (e) {}
+    }, 3000);
+  }
+}
+
+function renderAnimeGrid(dbStatus, collectedAnime, filter) {
+  // dbStatus.sample only has 10 — for a full grid we'd need all data
+  // For now, show what we have. The full anime list comes from the DB status.
+  // TODO: add a get_anime_list command that returns all entries
+
+  // We'll work with the sample for now and show tier counts
+  var tierCounts = { legendary: 25, epic: 75, rare: 200, uncommon: 300, common: 400 };
+  var html = '';
+
+  if (!dbStatus.count) {
+    html += '<div style="font-size:8px;color:var(--text-dim);grid-column:1/-1">FETCHING ANIME DATA...</div>';
+    return html;
+  }
+
+  // Show tier summary cards
+  var tiers = [
+    { name: 'legendary', range: '1-25', label: 'TOP 25', color: 'var(--legendary)' },
+    { name: 'epic', range: '26-100', label: 'TOP 100', color: 'var(--epic)' },
+    { name: 'rare', range: '101-300', label: 'TOP 300', color: 'var(--rare)' },
+    { name: 'uncommon', range: '301-600', label: 'TOP 600', color: 'var(--uncommon)' },
+    { name: 'common', range: '601+', label: 'NICHE', color: 'var(--common)' },
+  ];
+
+  for (var t of tiers) {
+    if (filter !== 'all' && filter !== t.name) continue;
+    var pulledFromTier = collectedAnime.filter(function(a) { return true; }).length; // simplified
+    html += '<div class="roster-card collected" style="border-color:' + t.color + '">';
+    html += '<span class="rarity-badge rarity-' + t.name + '">' + t.name.toUpperCase() + '</span>';
+    html += '<div class="roster-name">RANK ' + t.range + '</div>';
+    html += '<div class="roster-count">' + t.label + '</div>';
+    html += '</div>';
+  }
+
+  // Show sample anime from dbStatus
+  for (var anime of dbStatus.sample || []) {
+    if (filter !== 'all' && filter !== anime.rarity) continue;
+    var isPulled = collectedAnime.indexOf(anime.title) >= 0;
+    html += '<div class="roster-card ' + (isPulled ? 'collected' : 'uncollected') + '">';
+    html += '<span class="rarity-badge rarity-' + anime.rarity + '">#' + anime.rank + '</span>';
+    html += '<div class="roster-name">' + (isPulled ? anime.title : '???') + '</div>';
+    html += '</div>';
+  }
+
+  return html;
 }
 
 // ============================================

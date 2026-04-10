@@ -161,8 +161,8 @@ fn fetch_from_jikan() -> Result<AnimeDb, String> {
             break;
         }
 
-        // Jikan rate limit: 3 requests/second
-        std::thread::sleep(std::time::Duration::from_millis(400));
+        // Jikan rate limit: stay well under 3 req/s to avoid 429s
+        std::thread::sleep(std::time::Duration::from_secs(2));
     }
 
     Ok(AnimeDb {
