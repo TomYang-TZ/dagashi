@@ -170,7 +170,7 @@ nav {
 /* ============ PAGES ============ */
 .page {
   display: none;
-  padding: 16px;
+  padding: 16px 16px 40px 16px;
   max-width: 960px;
   margin: 0 auto;
 }

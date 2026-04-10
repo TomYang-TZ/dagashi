@@ -67,7 +67,9 @@ function renderAsciiFrame(frame, ramp, mode) {
       } else if (mode === 'color') {
         html += `<span style="color:rgb(${px.r},${px.g},${px.b})">${escaped}</span>`;
       } else {
-        html += escaped;
+        // Mono mode: vary opacity based on brightness for depth
+        var alpha = (px.brightness / 255 * 0.8 + 0.2).toFixed(2);
+        html += `<span style="color:rgba(196,163,90,${alpha})">${escaped}</span>`;
       }
     }
     html += '</div>';
