@@ -13,7 +13,7 @@
   <img src="https://img.shields.io/badge/built_with-Tauri_v2-24C8DB?style=flat-square&logo=tauri" alt="Tauri v2">
   <img src="https://img.shields.io/badge/rust-000?style=flat-square&logo=rust" alt="Rust">
   <img src="https://img.shields.io/badge/anime-1000+-E91E63?style=flat-square" alt="1000+ anime">
-  <img src="https://img.shields.io/badge/joy-disproportionate-C4A35A?style=flat-square" alt="Disproportionate joy">
+  <img src="https://img.shields.io/badge/dagashi-駄菓子-C4A35A?style=flat-square" alt="Dagashi">
 </p>
 
 ---
@@ -134,7 +134,7 @@ pnpm install
 On first launch:
 1. macOS may prompt for **Input Monitoring** permission — grant it
 2. Start typing — the keyboard heatmap lights up in real-time
-3. Wait for 11:59 PM or manually trigger a pull
+3. Wait for 11:59 PM — your daily pull triggers automatically
 
 ## Architecture
 
