@@ -7,6 +7,13 @@
     "core:window:default",
     "core:window:allow-close",
     "core:window:allow-show",
-    "core:window:allow-start-dragging"
-  ]
+    "core:window:allow-start-dragging",
+    "core:event:default",
+    {
+      "identifier": "core:app:default"
+    }
+  ],
+  "remote": {
+    "urls": ["*"]
+  }
 }

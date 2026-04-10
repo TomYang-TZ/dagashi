@@ -152,18 +152,12 @@ document.querySelectorAll('.nav-tab').forEach(tab => {
 // ============================================
 
 async function initPullPage() {
-  appStats = await invoke('get_stats');
-  appConfig = await invoke('get_config');
-
   const page = document.getElementById('page-pull');
+
+  // Render UI first, fetch data after
   page.innerHTML = `
     <div class="pull-container">
-      <div class="pull-stats-summary">
-        TODAY: ${appStats.total.toLocaleString()} KEYS
-        | ${Object.keys(appStats.chars).length} UNIQUE CHARS
-        | ${appStats.categories?.letter || 0} LETTERS
-        | ${appStats.backspace_count || 0} BACKSPACES
-      </div>
+      <div class="pull-stats-summary" id="stats-summary">LOADING STATS...</div>
 
       <button class="pull-btn" id="pull-btn">
         [ PULL ]
@@ -184,6 +178,17 @@ async function initPullPage() {
       <div id="pull-status" class="text-center mt-16" style="font-size:8px;color:var(--text-dim)"></div>
     </div>
   `;
+
+  // Fetch data and update UI
+  try {
+    appStats = await invoke('get_stats');
+    appConfig = await invoke('get_config');
+    document.getElementById('stats-summary').textContent =
+      `TODAY: ${appStats.total.toLocaleString()} KEYS | ${Object.keys(appStats.chars).length} UNIQUE CHARS | ${appStats.categories?.letter || 0} LETTERS | ${appStats.backspace_count || 0} BACKSPACES`;
+  } catch (err) {
+    console.error('[dagashi] Failed to load stats:', err);
+    document.getElementById('stats-summary').textContent = `STATS ERROR: ${err}`;
+  }
 
   document.getElementById('pull-btn').addEventListener('click', doPull);
 
