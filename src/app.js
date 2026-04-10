@@ -427,45 +427,25 @@ async function renderCollection() {
 }
 
 function renderAnimeGrid(dbStatus, collectedAnime, filter) {
-  // dbStatus.sample only has 10 — for a full grid we'd need all data
-  // For now, show what we have. The full anime list comes from the DB status.
-  // TODO: add a get_anime_list command that returns all entries
-
-  // We'll work with the sample for now and show tier counts
-  var tierCounts = { legendary: 25, epic: 75, rare: 200, uncommon: 300, common: 400 };
   var html = '';
+  var animeList = dbStatus.anime || [];
 
-  if (!dbStatus.count) {
+  if (!animeList.length) {
     html += '<div style="font-size:8px;color:var(--text-dim);grid-column:1/-1">FETCHING ANIME DATA...</div>';
     return html;
   }
 
-  // Show tier summary cards
-  var tiers = [
-    { name: 'legendary', range: '1-25', label: 'TOP 25', color: 'var(--legendary)' },
-    { name: 'epic', range: '26-100', label: 'TOP 100', color: 'var(--epic)' },
-    { name: 'rare', range: '101-300', label: 'TOP 300', color: 'var(--rare)' },
-    { name: 'uncommon', range: '301-600', label: 'TOP 600', color: 'var(--uncommon)' },
-    { name: 'common', range: '601+', label: 'NICHE', color: 'var(--common)' },
-  ];
+  var filtered = filter === 'all' ? animeList : animeList.filter(function(a) { return a.rarity === filter; });
 
-  for (var t of tiers) {
-    if (filter !== 'all' && filter !== t.name) continue;
-    var pulledFromTier = collectedAnime.filter(function(a) { return true; }).length; // simplified
-    html += '<div class="roster-card collected" style="border-color:' + t.color + '">';
-    html += '<span class="rarity-badge rarity-' + t.name + '">' + t.name.toUpperCase() + '</span>';
-    html += '<div class="roster-name">RANK ' + t.range + '</div>';
-    html += '<div class="roster-count">' + t.label + '</div>';
-    html += '</div>';
-  }
-
-  // Show sample anime from dbStatus
-  for (var anime of dbStatus.sample || []) {
-    if (filter !== 'all' && filter !== anime.rarity) continue;
+  for (var anime of filtered) {
     var isPulled = collectedAnime.indexOf(anime.title) >= 0;
-    html += '<div class="roster-card ' + (isPulled ? 'collected' : 'uncollected') + '">';
+    var cls = isPulled ? 'collected' : 'uncollected';
+    html += '<div class="roster-card ' + cls + '">';
     html += '<span class="rarity-badge rarity-' + anime.rarity + '">#' + anime.rank + '</span>';
-    html += '<div class="roster-name">' + (isPulled ? anime.title : '???') + '</div>';
+    html += '<div class="roster-name">' + anime.title + '</div>';
+    if (anime.score) {
+      html += '<div class="roster-count">MAL ' + anime.score + ' | ' + (anime.members / 1000).toFixed(0) + 'K</div>';
+    }
     html += '</div>';
   }
 

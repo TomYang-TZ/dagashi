@@ -58,10 +58,12 @@ fn get_anime_db_status(state: State<AppState>) -> serde_json::Value {
     serde_json::json!({
         "count": db.anime.len(),
         "fetched_at": db.fetched_at,
-        "sample": db.anime.iter().take(10).map(|a| {
+        "anime": db.anime.iter().map(|a| {
             serde_json::json!({
                 "title": a.title,
                 "rank": a.popularity_rank,
+                "members": a.members,
+                "score": a.score,
                 "rarity": crate::anime_db::rank_to_rarity(a.popularity_rank).label(),
             })
         }).collect::<Vec<_>>(),
