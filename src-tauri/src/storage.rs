@@ -1,0 +1,94 @@
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::fs;
+
+use crate::config;
+use crate::image_pipeline::PipelineResult;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PullMeta {
+    pub date: String,
+    pub character: String,
+    pub scene: String,
+    pub rarity: String,
+    pub flavor_text: String,
+    pub source: String,
+    pub color_mode: String,
+    pub frame_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct Collection {
+    pub pulls: Vec<PullMeta>,
+    pub unique_characters: HashMap<String, u32>,
+}
+
+pub fn pulls_dir() -> std::path::PathBuf {
+    config::data_dir().join("pulls")
+}
+
+pub fn save_pull(
+    meta: &PullMeta,
+    pipeline: &PipelineResult,
+) -> Result<(), String> {
+    let dir = pulls_dir().join(&meta.date);
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+
+    // Save meta
+    let meta_json = serde_json::to_string_pretty(meta).map_err(|e| e.to_string())?;
+    fs::write(dir.join("meta.json"), meta_json).map_err(|e| e.to_string())?;
+
+    // Save pixel frames as JSON (frontend renders the actual characters)
+    let frames_json = serde_json::to_string(pipeline).map_err(|e| e.to_string())?;
+    fs::write(dir.join("frames.json"), frames_json).map_err(|e| e.to_string())?;
+
+    // Update collection index
+    update_collection(meta)?;
+
+    Ok(())
+}
+
+fn update_collection(meta: &PullMeta) -> Result<(), String> {
+    let path = config::data_dir().join("collection.json");
+    let mut collection = load_collection();
+
+    collection.pulls.push(meta.clone());
+    *collection
+        .unique_characters
+        .entry(meta.character.clone())
+        .or_insert(0) += 1;
+
+    let json = serde_json::to_string_pretty(&collection).map_err(|e| e.to_string())?;
+    fs::create_dir_all(path.parent().unwrap()).map_err(|e| e.to_string())?;
+    fs::write(path, json).map_err(|e| e.to_string())
+}
+
+pub fn load_collection() -> Collection {
+    let path = config::data_dir().join("collection.json");
+    if path.exists() {
+        fs::read_to_string(&path)
+            .ok()
+            .and_then(|data| serde_json::from_str(&data).ok())
+            .unwrap_or_default()
+    } else {
+        Collection::default()
+    }
+}
+
+pub fn recent_pull_names(n: usize) -> Vec<String> {
+    let collection = load_collection();
+    collection
+        .pulls
+        .iter()
+        .rev()
+        .take(n)
+        .map(|p| format!("{} - {}", p.character, p.scene))
+        .collect()
+}
+
+/// Load a specific pull's frame data for the viewer
+pub fn load_pull_frames(date: &str) -> Result<PipelineResult, String> {
+    let path = pulls_dir().join(date).join("frames.json");
+    let data = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    serde_json::from_str(&data).map_err(|e| e.to_string())
+}

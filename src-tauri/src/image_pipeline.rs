@@ -1,12 +1,12 @@
 use image::codecs::gif::GifDecoder;
 use image::{AnimationDecoder, DynamicImage, GenericImageView, ImageReader};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::io::Cursor;
 
 use crate::giphy;
 use crate::wiki;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FramePixel {
     pub r: u8,
     pub g: u8,
@@ -14,12 +14,12 @@ pub struct FramePixel {
     pub brightness: u8,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AsciiFrame {
     pub pixels: Vec<Vec<FramePixel>>, // [row][col]
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PipelineResult {
     pub frames: Vec<AsciiFrame>,
     pub cols: u32,
