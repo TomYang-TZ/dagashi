@@ -3,15 +3,16 @@
 mod anime_db;
 mod config;
 mod gacha;
-mod giphy;
 mod image_pipeline;
+mod jikan;
+mod tenor;
 mod ipfs;
 mod keylogger;
 mod llm;
 mod stats;
 mod storage;
-mod wiki;
 
+use chrono::Timelike;
 use std::sync::Mutex;
 use tauri::State;
 
@@ -187,19 +188,30 @@ fn do_pull_inner(
         "mono"
     };
 
-    // 5. Fetch and process image
+    // 5. Fetch and process image (skip URLs already in collection)
+    let used_urls: std::collections::HashSet<String> = storage::load_collection()
+        .pulls
+        .iter()
+        .filter_map(|p| p.source_url.clone())
+        .collect();
     let pipeline = image_pipeline::fetch_frames(
         &selection.search_query,
         &selection.character,
+        &anime.title,
+        anime.mal_id,
         cfg.ascii.columns,
-        cfg.giphy_api_key.as_deref(),
-        stats_seed,
+        &used_urls,
     )?;
     eprintln!("[dagashi] Got {} frames from {}", pipeline.frames.len(), pipeline.source);
 
-    // 6. Save pull
+    // 6. Save pull — keyed by date + hour
+    let pull_key = format!(
+        "{}-{:02}",
+        stats_snapshot.date,
+        chrono::Local::now().hour()
+    );
     let mut meta = storage::PullMeta {
-        date: stats_snapshot.date.clone(),
+        date: pull_key,
         character: selection.character,
         scene: selection.scene,
         rarity: rarity.label().to_string(),
@@ -209,6 +221,7 @@ fn do_pull_inner(
         frame_count: pipeline.frames.len(),
         anime_title: anime.title.clone(),
         anime_rank: anime.popularity_rank,
+        source_url: Some(pipeline.source_url.clone()).filter(|s| !s.is_empty()),
         ipfs_cid: None,
     };
 

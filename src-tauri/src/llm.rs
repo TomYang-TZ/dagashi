@@ -6,6 +6,25 @@ use crate::config::LlmConfig;
 use crate::gacha::Rarity;
 use crate::stats::DailyStats;
 
+/// Clean up claude -p session transcript to prevent stale session state.
+/// Claude creates transcript files in ~/.claude/projects/ for each -p call.
+fn cleanup_session_transcript(session_id: &str) {
+    let home = match dirs::home_dir() {
+        Some(h) => h,
+        None => return,
+    };
+    let projects_dir = home.join(".claude").join("projects");
+    if let Ok(dirs) = std::fs::read_dir(&projects_dir) {
+        for entry in dirs.flatten() {
+            let transcript = entry.path().join(format!("{session_id}.jsonl"));
+            if transcript.exists() {
+                std::fs::remove_file(&transcript).ok();
+                break;
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CharacterSelection {
     pub character: String,
@@ -63,20 +82,26 @@ RECENT PULLS (avoid repeating): {recent}
 Rules:
 - Pick a well-known character from this specific anime
 - The scene should be iconic or funny — something fans would recognize
-- The search_query should work well for finding a GIF on Giphy (include anime name + character name)
+- The search_query MUST start with the character's full name and the anime title, then add 1-2 descriptive words for the scene/mood — e.g. "kaguya shinomiya kaguya-sama love is war smug" or "gintoki sakata gintama lazy eating". Do NOT add generic words like "gif", "anime", "scene", "moment", or "iconic".
 - The flavor_text should be a fun 1-2 sentence "reading" connecting the user's typing personality to the character
 - Keep it playful and surprising"#,
         rarity = rarity.label(),
     );
 
     let claude_bin = find_claude_binary();
+    let home = dirs::home_dir().expect("no home dir");
     let mut child = Command::new(&claude_bin)
+        .current_dir("/tmp")
+        .env_remove("ANTHROPIC_API_KEY")
+        .env("HOME", &home)
+        .env("PATH", format!("{}/.local/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin", home.display()))
         .args([
             "-p",
             "--model", &config.cli_model,
             "--effort", &config.cli_effort,
             "--output-format", "json",
             "--json-schema", JSON_SCHEMA,
+            "--allowedTools", "",
             "--no-session-persistence",
         ])
         .stdin(std::process::Stdio::piped())
@@ -85,19 +110,26 @@ Rules:
         .spawn()
         .map_err(|e| format!("failed to run claude: {e}"))?;
 
-    if let Some(stdin) = child.stdin.as_mut() {
+    // Take stdin, write prompt, then drop to send EOF cleanly
+    {
+        let mut stdin = child.stdin.take().ok_or("failed to open stdin")?;
         stdin.write_all(prompt.as_bytes()).map_err(|e| e.to_string())?;
-    }
+    } // stdin dropped here — sends EOF to claude process
 
     let output = child.wait_with_output().map_err(|e| e.to_string())?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // Clean up session transcript to prevent stale state
+    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&stdout) {
+        if let Some(sid) = parsed.get("session_id").and_then(|v| v.as_str()) {
+            cleanup_session_transcript(sid);
+        }
+    }
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        let stdout = String::from_utf8_lossy(&output.stdout);
         return Err(format!("claude exited with error (status {}): stderr={} stdout={}", output.status, stderr, stdout));
     }
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
 
     // claude -p --output-format json returns a wrapper with multiple fields:
     //   {"type":"result", "result":"...", "structured_output":{...}, ...}

@@ -12,13 +12,13 @@
   <img src="https://img.shields.io/badge/platform-macOS-000?style=flat-square&logo=apple" alt="macOS">
   <img src="https://img.shields.io/badge/built_with-Tauri_v2-24C8DB?style=flat-square&logo=tauri" alt="Tauri v2">
   <img src="https://img.shields.io/badge/rust-000?style=flat-square&logo=rust" alt="Rust">
-  <img src="https://img.shields.io/badge/anime-1000+-E91E63?style=flat-square" alt="1000+ anime">
+  <img src="https://img.shields.io/badge/anime-300+-E91E63?style=flat-square" alt="300+ anime">
   <img src="https://img.shields.io/badge/dagashi-駄菓子-C4A35A?style=flat-square" alt="Dagashi">
 </p>
 
 ---
 
-Dagashi is a desktop app that silently records your keystrokes all day, then at 11:59 PM uses them to generate a gacha pull of animated ASCII art from 1000+ anime series. More popular anime are rarer pulls. Your typing patterns determine which character you get.
+Dagashi is a desktop app that silently records your keystrokes all day, then uses them to generate gacha pulls of animated ASCII art from 300 top anime series. More popular anime are rarer pulls. Your typing patterns determine which character you get.
 
 It won't make you more productive. It won't optimize your workflow. It's just a small, quiet thing that turns your day into something to look forward to.
 
@@ -33,7 +33,7 @@ It won't make you more productive. It won't optimize your workflow. It's just a 
 </tr>
 </table>
 
-<p align="center"><em>ASCII art rendered using your actual keystroke characters — <code>e t a o i n s r</code> become your pixels</em></p>
+<p align="center"><em>ASCII art rendered in clean and block modes — switchable in real-time</em></p>
 
 <p align="center">
   <img src="assets/dagashi-pull-demo.gif" alt="Dagashi pull demo — keystroke heatmap, gacha roll, ASCII art reveal" width="720">
@@ -55,25 +55,25 @@ It won't make you more productive. It won't optimize your workflow. It's just a 
 
 1. **Type normally.** A lightweight daemon runs in your terminal, counting every keystroke globally. It never records what you type — only how much and which keys. No passwords, no credit cards, nothing reconstructable.
 
-2. **At 11:59 PM, your daily pull triggers automatically.** Your keystroke volume determines the rarity odds. More typing = better chance of a rare pull. But even a lazy day has a shot at legendary.
+2. **Every hour, a new pull triggers automatically.** Your keystroke volume determines the rarity odds. More typing = better chance of a rare pull. Stats accumulate all day and reset at midnight.
 
 3. **An AI picks your character.** Based on your typing stats — backspace ratio, shift usage, peak hours — Claude interprets your "typing personality" and picks a character + scene that matches.
 
-4. **Animated ASCII art appears.** A GIF of that character is fetched, converted to ASCII art using your actual typed characters as pixels, and rendered in a retro pixel UI with a live keyboard heatmap.
+4. **Animated ASCII art appears.** A GIF of that character is fetched from Tenor, converted to ASCII art, and rendered in a retro pixel UI with a live keyboard heatmap. Toggle between clean and block character modes.
 
 5. **Collect them all.** Your pull is saved to a gallery. Every day is a new pull. Rarity shifts over time as anime popularity changes.
 
 ## The Gacha
 
-1000 anime from [MyAnimeList](https://myanimelist.net) (via Jikan API), ranked by popularity. **More popular = rarer.**
+300 anime from [MyAnimeList](https://myanimelist.net) (via Jikan API), ranked by popularity. **More popular = rarer.**
 
 | Rarity | Rank | Examples |
 |--------|------|----------|
-| **Legendary** | #1-25 | Attack on Titan, Death Note, One Punch Man, Naruto |
-| **Epic** | #26-100 | Steins;Gate, Gintama, Mob Psycho 100, Cowboy Bebop |
-| **Rare** | #101-300 | Monster, Trigun, Great Teacher Onizuka |
-| **Uncommon** | #301-600 | Mid-tier shows you might discover |
-| **Common** | #601-1000 | Obscure gems waiting to be found |
+| **Legendary** | #1-10 | Attack on Titan, Death Note, Fullmetal Alchemist |
+| **Epic** | #11-50 | Steins;Gate, Gintama, Mob Psycho 100, Cowboy Bebop |
+| **Rare** | #51-150 | Monster, Trigun, Great Teacher Onizuka |
+| **Uncommon** | #151-250 | Mid-tier shows you might discover |
+| **Common** | #251-300 | The edge of the top 300 |
 
 The anime database refreshes every 14 days. A show that's Common today could become Rare tomorrow if it blows up. Your collection's value is alive.
 
@@ -91,13 +91,13 @@ No words. No sentences. No order. A **deaf mode** toggle instantly stops all rec
 ## Features
 
 - **Live keyboard heatmap** — see your typing patterns in real-time
-- **Daily auto-pull** at 11:59 PM with countdown timer
-- **Mono or color** ASCII art — color is harder to earn, based on your typing engagement
+- **Hourly auto-pull** with countdown timer — stats reset at midnight
+- **Mono or color** ASCII art with clean and block character modes
 - **IPFS pull receipts** — optional verifiable proof-of-pull pinned via Pinata
-- **1000+ anime** from MyAnimeList with popularity-based rarity
+- **300 top anime** from MyAnimeList with popularity-based rarity
 - **AI character selection** via Claude CLI — interprets your typing personality
 - **Gallery** of past pulls with replay
-- **Roster** showing all 1000 anime with rarity tiers and MAL scores
+- **Roster** showing all 300 anime with rarity tiers and MAL scores
 - **Deaf mode** — one-click pause on keystroke recording
 - **Retro pixel UI** — Press Start 2P font, CRT scanlines, amber-on-dark
 - **All keys captured** — letters, numbers, `⌘` `⌥` `⇧` `⌃` `⏎` `⌫` arrows, function keys
@@ -129,12 +129,14 @@ pnpm install
 ./scripts/start.sh        # Start daemon + open app
 ./scripts/stop.sh          # Stop everything
 ./scripts/restart.sh       # Stop then start
+./scripts/dev.sh           # Build from source + launch (development)
+./scripts/rebuild.sh       # Full rebuild, install to /Applications, start
 ```
 
 On first launch:
 1. macOS may prompt for **Input Monitoring** permission — grant it
 2. Start typing — the keyboard heatmap lights up in real-time
-3. Wait for 11:59 PM — your daily pull triggers automatically
+3. Wait for the top of the next hour — your pull triggers automatically
 
 ## Architecture
 
@@ -156,7 +158,7 @@ Two processes, shared filesystem:
 │       ├── receipt.json    ← IPFS pull receipt (if Pinata configured)
 │       └── cid.txt         ← IPFS content identifier
 ├── collection.json         ← all pulls indexed
-├── anime_db.json           ← 1000 anime cached from MAL
+├── anime_db.json           ← 300 anime cached from MAL
 ├── config.json             ← user settings
 └── bin/
     └── dagashi-keytap      ← compiled Swift helper for CGEventTap
@@ -170,8 +172,8 @@ Two processes, shared filesystem:
 | App | Tauri v2 | Rust backend + webview frontend |
 | Frontend | Vanilla JS | Retro pixel UI, ASCII renderer, keyboard heatmap |
 | AI | Claude CLI | Character selection from typing personality |
-| Images | Giphy API | Animated GIF search for anime characters |
-| Anime DB | Jikan API | 1000 anime ranked by MAL popularity |
+| Images | Tenor | Animated GIF search for anime characters |
+| Anime DB | Jikan API | 300 anime ranked by MAL popularity |
 
 ## Why "Dagashi"?
 
@@ -198,7 +200,8 @@ This app is the same idea. Your keystrokes become penny candies — tiny, colorf
 - **[Press Start 2P](https://fonts.google.com/specimen/Press+Start+2P)** by CodeMan38 — the pixel font that gives Dagashi its retro soul
 - **[image](https://crates.io/crates/image)** crate — GIF/PNG/JPEG decoding and pixel-grid conversion for ASCII art rendering
 - **[Jikan API](https://jikan.moe)** — unofficial MyAnimeList API powering the anime database
-- **[Giphy API](https://developers.giphy.com)** — animated GIF search for character art
+- **[Tenor](https://tenor.com)** — animated GIF search for character art
+- **[Jikan Character API](https://jikan.moe)** — fallback character portraits from MyAnimeList
 - **[Pinata](https://www.pinata.cloud)** — IPFS pinning service for verifiable pull receipts
 
 ## License

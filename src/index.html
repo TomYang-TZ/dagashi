@@ -79,27 +79,18 @@ async function invoke(cmd, args) {
 // ASCII RENDERER
 // ============================================
 
-// Default brightness ramp (fallback if user has < 10 unique chars)
-const DEFAULT_RAMP = ' .`-_:,;^=+/|)\\!?0oOQ#%@';
+// Ramp options — toggle via RAMP_MODE
+const RAMP_BOURKE = " .'`^\",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$";
+const RAMP_ANIME  = ' .:-=+*#%@';
+const RAMP_BLOCK  = ' ░▒▓█';
+var CHAR_RAMP = RAMP_ANIME;
 
-function buildCharRamp(charFreqs) {
-  // Sort user's chars by frequency (least → most), space-pad for brightness range
-  const entries = Object.entries(charFreqs)
-    .filter(([k]) => k.length === 1 && k !== ' ') // single printable chars only
-    .sort((a, b) => a[1] - b[1]); // least frequent first = lightest
-
-  if (entries.length < 10) return DEFAULT_RAMP;
-
-  // Build ramp: space (lightest) + chars sorted by frequency
-  return ' ' + entries.map(([ch]) => ch).join('');
+function brightnessToChar(brightness) {
+  const idx = Math.floor((brightness / 255) * (CHAR_RAMP.length - 1));
+  return CHAR_RAMP[Math.min(idx, CHAR_RAMP.length - 1)];
 }
 
-function brightnessToChar(brightness, ramp) {
-  const idx = Math.floor((brightness / 255) * (ramp.length - 1));
-  return ramp[Math.min(idx, ramp.length - 1)];
-}
-
-function renderAsciiFrame(frame, ramp, mode) {
+function renderAsciiFrame(frame, mode) {
   // frame.pixels = [[{r,g,b,brightness}, ...], ...]
   const rows = frame.pixels;
   let html = '';
@@ -107,7 +98,7 @@ function renderAsciiFrame(frame, ramp, mode) {
   for (const row of rows) {
     html += '<div class="ascii-row">';
     for (const px of row) {
-      const ch = brightnessToChar(px.brightness, ramp);
+      const ch = brightnessToChar(px.brightness);
       const escaped = ch === '<' ? '&lt;' : ch === '>' ? '&gt;' : ch === '&' ? '&amp;' : ch;
 
       if (ch === ' ') {
@@ -130,10 +121,9 @@ function renderAsciiFrame(frame, ramp, mode) {
 // ============================================
 
 class AsciiAnimator {
-  constructor(container, frames, ramp) {
+  constructor(container, frames) {
     this.container = container;
     this.frames = frames;
-    this.ramp = ramp;
     this.mode = 'color';
     this.currentFrame = 0;
     this.speed = 120;
@@ -170,7 +160,7 @@ class AsciiAnimator {
 
   render() {
     const frame = this.frames[this.currentFrame];
-    this.container.innerHTML = renderAsciiFrame(frame, this.ramp, this.mode);
+    this.container.innerHTML = renderAsciiFrame(frame, this.mode);
   }
 }
 
@@ -203,16 +193,23 @@ document.querySelectorAll('.nav-tab').forEach(tab => {
 // PULL PAGE
 // ============================================
 
+function currentPullKey() {
+  var now = new Date();
+  var date = now.toISOString().split('T')[0];
+  var hour = (now.getHours() < 10 ? '0' : '') + now.getHours();
+  return date + '-' + hour;
+}
+
 function formatCountdown() {
   var now = new Date();
-  var midnight = new Date(now);
-  midnight.setHours(23, 59, 0, 0); // 11:59 PM
-  var diff = midnight - now;
+  var nextHour = new Date(now);
+  nextHour.setMinutes(0, 0, 0);
+  nextHour.setHours(nextHour.getHours() + 1);
+  var diff = nextHour - now;
   if (diff <= 0) return null; // pull time!
-  var h = Math.floor(diff / 3600000);
-  var m = Math.floor((diff % 3600000) / 60000);
+  var m = Math.floor(diff / 60000);
   var s = Math.floor((diff % 60000) / 1000);
-  return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+  return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
 }
 
 async function initPullPage() {
@@ -227,10 +224,15 @@ async function initPullPage() {
       '<div class="mode-toggle mt-8">' +
         '<button class="mode-btn active" data-mode="color">COLOR</button>' +
         '<button class="mode-btn" data-mode="mono">MONO</button>' +
+        '<button class="mode-btn" data-mode="original">ORIGINAL</button>' +
+        '<span style="margin-left:12px"></span>' +
+        '<button class="mode-btn ramp-btn active" data-ramp="anime">CLEAN</button>' +
+        '<button class="mode-btn ramp-btn" data-ramp="block">BLOCK</button>' +
       '</div>' +
       '<div id="pull-result" class="hidden">' +
         '<div class="ascii-display">' +
           '<div class="ascii-art" id="ascii-container"></div>' +
+          '<div id="original-container" style="display:none;text-align:center;padding:8px"><img id="original-img" style="max-width:100%;border-radius:4px"></div>' +
         '</div>' +
         '<div class="result-card" id="result-card"></div>' +
       '</div>' +
@@ -251,65 +253,74 @@ async function initPullPage() {
     document.getElementById('stats-summary').textContent = 'STATS ERROR: ' + err;
   }
 
-  page.querySelectorAll('.mode-btn').forEach(function(btn) {
+  page.querySelectorAll('.mode-btn:not(.ramp-btn)').forEach(function(btn) {
     btn.addEventListener('click', function() {
-      page.querySelectorAll('.mode-btn').forEach(function(b) { b.classList.remove('active'); });
+      page.querySelectorAll('.mode-btn:not(.ramp-btn)').forEach(function(b) { b.classList.remove('active'); });
       btn.classList.add('active');
-      if (currentAnimator) currentAnimator.setMode(btn.dataset.mode);
+      var asciiEl = document.getElementById('ascii-container');
+      var origEl = document.getElementById('original-container');
+      var rampBtns = page.querySelectorAll('.ramp-btn');
+      if (btn.dataset.mode === 'original') {
+        if (asciiEl) asciiEl.style.display = 'none';
+        if (origEl) origEl.style.display = 'block';
+        rampBtns.forEach(function(b) { b.style.display = 'none'; });
+      } else {
+        if (asciiEl) asciiEl.style.display = 'block';
+        if (origEl) origEl.style.display = 'none';
+        rampBtns.forEach(function(b) { b.style.display = ''; });
+        if (currentAnimator) currentAnimator.setMode(btn.dataset.mode);
+      }
+    });
+  });
+  page.querySelectorAll('.ramp-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      page.querySelectorAll('.ramp-btn').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      CHAR_RAMP = btn.dataset.ramp === 'block' ? RAMP_BLOCK : RAMP_ANIME;
+      if (currentAnimator) currentAnimator.render();
     });
   });
 
-  // Check if today's pull already exists
-  var hasTodayPull = false;
+  // Check if this hour's pull already exists
+  var pullKey = currentPullKey();
   try {
-    var today = new Date().toISOString().split('T')[0];
-    var todayMeta = await invoke('load_pull_meta', { date: today });
-    if (todayMeta) {
-      hasTodayPull = true;
-      document.getElementById('pull-countdown').textContent = 'TODAY\'S PULL';
-      document.getElementById('pull-countdown-label').textContent = todayMeta.character + ' — ' + todayMeta.anime_title;
-      viewPull(today);
+    var hourMeta = await invoke('load_pull_meta', { date: pullKey });
+    if (hourMeta) {
+      viewPull(pullKey);
     }
   } catch (e) {
-    // No pull today
+    // No pull this hour
   }
 
-  if (!hasTodayPull) {
-    // Manual pull button
-    var pullBtn = document.createElement('button');
-    pullBtn.className = 'pull-now-btn';
-    pullBtn.textContent = 'PULL NOW';
-    document.getElementById('pull-countdown').after(pullBtn);
+  // Dev: double-click countdown to trigger pull manually
+  document.getElementById('pull-countdown').addEventListener('dblclick', function() {
+    this.textContent = '[ PULLING... ]';
+    document.getElementById('pull-countdown-label').textContent = 'MANUAL PULL';
+    doPull();
+  });
 
-    // Show countdown to 11:59 PM
-    var countdownInterval;
-    pullBtn.addEventListener('click', function() {
-      pullBtn.disabled = true;
-      pullBtn.textContent = 'PULLING...';
-      document.getElementById('pull-countdown-label').textContent = '';
+  // Always show countdown to next hour
+  function updateCountdown() {
+    var cd = formatCountdown();
+    var el = document.getElementById('pull-countdown');
+    var label = document.getElementById('pull-countdown-label');
+    if (!el) return;
+
+    // Check if hour changed (new pull key)
+    var newKey = currentPullKey();
+    if (newKey !== pullKey) {
+      el.textContent = '[ PULLING... ]';
+      label.textContent = 'AUTO-PULL TRIGGERED';
       clearInterval(countdownInterval);
+      pullKey = newKey;
       doPull();
-    });
-
-    function updateCountdown() {
-      var cd = formatCountdown();
-      var el = document.getElementById('pull-countdown');
-      var label = document.getElementById('pull-countdown-label');
-      if (!el) return;
-      if (cd === null) {
-        // It's 11:59 PM — trigger the pull!
-        el.textContent = '[ PULLING... ]';
-        label.textContent = 'AUTO-PULL TRIGGERED';
-        clearInterval(countdownInterval);
-        doPull();
-      } else {
-        el.textContent = cd;
-        label.textContent = 'PULL IN';
-      }
+    } else if (cd !== null) {
+      el.textContent = cd;
+      label.textContent = 'NEXT PULL IN';
     }
-    updateCountdown();
-    countdownInterval = setInterval(updateCountdown, 1000);
   }
+  updateCountdown();
+  var countdownInterval = setInterval(updateCountdown, 1000);
 
   updateStatusBar();
 }
@@ -345,15 +356,17 @@ async function doPull() {
     clearInterval(loadingInterval);
     status.textContent = `GOT: ${meta.character} (${meta.rarity})`;
 
+    // Clear pulling state from countdown
+    if (countdown) countdown.textContent = '';
+    var cdLabel = document.getElementById('pull-countdown-label');
+    if (cdLabel) cdLabel.textContent = '';
+
     // Hide pull button
     var pullBtn = document.querySelector('.pull-now-btn');
     if (pullBtn) pullBtn.style.display = 'none';
 
     // Load the frames
     const pipeline = await invoke('load_pull_frames', { date: meta.date });
-
-    // Build char ramp from user's keystroke stats
-    const ramp = buildCharRamp(appStats.chars);
 
     // Show result
     const resultDiv = document.getElementById('pull-result');
@@ -362,7 +375,7 @@ async function doPull() {
     const container = document.getElementById('ascii-container');
     if (currentAnimator) currentAnimator.stop();
 
-    currentAnimator = new AsciiAnimator(container, pipeline.frames, ramp);
+    currentAnimator = new AsciiAnimator(container, pipeline.frames);
     var mode = 'color';
     document.querySelectorAll('.mode-btn').forEach(function(b) {
       b.classList.toggle('active', b.dataset.mode === mode);
@@ -370,11 +383,18 @@ async function doPull() {
     currentAnimator.setMode(mode);
     currentAnimator.start();
 
+    // Set original image and show/hide button
+    var origBtn = document.querySelector('[data-mode="original"]');
+    if (meta.source_url) {
+      document.getElementById('original-img').src = meta.source_url;
+      if (origBtn) origBtn.style.display = '';
+    } else {
+      if (origBtn) origBtn.style.display = 'none';
+    }
+
     // Result card
-    var modeClass = meta.color_mode === 'color' ? 'mode-color' : 'mode-mono';
     document.getElementById('result-card').innerHTML = `
       <span class="rarity-badge rarity-${meta.rarity}">${meta.rarity.toUpperCase()}</span>
-      <span class="mode-badge ${modeClass}">${meta.color_mode.toUpperCase()}</span>
       <div class="result-character">${meta.character}</div>
       <div style="font-size:8px;color:var(--text-dim);margin-bottom:4px">${meta.anime_title || ''} ${meta.anime_rank ? '#' + meta.anime_rank : ''}</div>
       <div class="result-flavor">"${meta.flavor_text}"</div>
@@ -385,19 +405,12 @@ async function doPull() {
     `;
     renderIpfsSlot(meta.date, meta.ipfs_cid);
 
-    // Update countdown area to show result
-    if (countdown) {
-      countdown.textContent = 'TODAY\'S PULL';
-    }
-    var cdLabel = document.getElementById('pull-countdown-label');
-    if (cdLabel) {
-      cdLabel.textContent = meta.character + ' — ' + (meta.anime_title || '');
-    }
 
     // Scroll to result card so it's visible
     setTimeout(function() {
       document.getElementById('result-card').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }, 500);
+
   } catch (err) {
     clearInterval(loadingInterval);
     if (status) status.textContent = 'ERROR: ' + err;
@@ -489,10 +502,10 @@ async function renderGallery() {
 
 async function viewPull(date) {
   try {
+    console.log('[dagashi] viewPull:', date);
     var pipeline = await invoke('load_pull_frames', { date: date });
     var meta = await invoke('load_pull_meta', { date: date });
-    var stats = await invoke('get_stats');
-    var ramp = buildCharRamp(stats.chars);
+    console.log('[dagashi] viewPull loaded:', meta.character);
 
     // Switch to pull page and show the art
     document.querySelectorAll('.nav-tab').forEach(function(t) { t.classList.remove('active'); });
@@ -505,20 +518,38 @@ async function viewPull(date) {
       resultDiv.classList.remove('hidden');
       var container = document.getElementById('ascii-container');
       if (currentAnimator) currentAnimator.stop();
-      currentAnimator = new AsciiAnimator(container, pipeline.frames, ramp);
+      currentAnimator = new AsciiAnimator(container, pipeline.frames);
 
       var mode = 'color';
-      document.querySelectorAll('.mode-btn').forEach(function(b) {
+      document.querySelectorAll('.mode-btn:not(.ramp-btn)').forEach(function(b) {
         b.classList.toggle('active', b.dataset.mode === mode);
       });
+      document.querySelectorAll('.ramp-btn').forEach(function(b) {
+        b.classList.toggle('active', b.dataset.ramp === 'anime');
+        b.style.display = '';
+      });
+      CHAR_RAMP = RAMP_ANIME;
       currentAnimator.setMode(mode);
       currentAnimator.start();
 
+      // Set original image and show/hide button
+      var origImg = document.getElementById('original-img');
+      var origBtn = document.querySelector('[data-mode="original"]');
+      if (meta.source_url) {
+        if (origImg) origImg.src = meta.source_url;
+        if (origBtn) origBtn.style.display = '';
+      } else {
+        if (origBtn) origBtn.style.display = 'none';
+      }
+      // Reset to ASCII view
+      var asciiEl = document.getElementById('ascii-container');
+      var origEl = document.getElementById('original-container');
+      if (asciiEl) asciiEl.style.display = 'block';
+      if (origEl) origEl.style.display = 'none';
+
       // Show result card
-      var modeClass = mode === 'color' ? 'mode-color' : 'mode-mono';
       document.getElementById('result-card').innerHTML =
         '<span class="rarity-badge rarity-' + meta.rarity + '">' + meta.rarity.toUpperCase() + '</span>' +
-        '<span class="mode-badge ' + modeClass + '">' + mode.toUpperCase() + '</span>' +
         '<div class="result-character">' + meta.character + '</div>' +
         '<div style="font-size:8px;color:var(--text-dim);margin-bottom:4px">' + (meta.anime_title || '') + ' ' + (meta.anime_rank ? '#' + meta.anime_rank : '') + '</div>' +
         '<div class="result-flavor">"' + meta.flavor_text + '"</div>' +
@@ -533,7 +564,7 @@ async function viewPull(date) {
       }, 500);
     }
   } catch (err) {
-    console.error('Failed to load pull:', err);
+    console.error('[dagashi] Failed to load pull:', date, err);
   }
 }
 

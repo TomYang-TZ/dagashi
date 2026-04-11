@@ -1,10 +1,11 @@
 use image::codecs::gif::GifDecoder;
 use image::{AnimationDecoder, DynamicImage, GenericImageView, ImageReader};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::io::Cursor;
 
-use crate::giphy;
-use crate::wiki;
+use crate::jikan;
+use crate::tenor;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FramePixel {
@@ -19,12 +20,14 @@ pub struct AsciiFrame {
     pub pixels: Vec<Vec<FramePixel>>, // [row][col]
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
 pub struct PipelineResult {
     pub frames: Vec<AsciiFrame>,
     pub cols: u32,
     pub rows: u32,
-    pub source: String, // "giphy" or "wiki"
+    pub source: String,     // "tenor" or "jikan"
+    pub source_url: String, // original image URL
 }
 
 /// Full pipeline: search → download → extract frames → compute pixel grid.
@@ -33,37 +36,58 @@ pub struct PipelineResult {
 pub fn fetch_frames(
     search_query: &str,
     character_name: &str,
+    anime_title: &str,
+    mal_id: u64,
     cols: u32,
-    giphy_api_key: Option<&str>,
-    stats_seed: u64,
+    used_urls: &HashSet<String>,
 ) -> Result<PipelineResult, String> {
-    // Try Giphy first (animated GIF)
-    let gif_urls = giphy::search_gifs(search_query, 5, giphy_api_key);
-    if !gif_urls.is_empty() {
-        let idx = (stats_seed as usize) % gif_urls.len();
-        let url = &gif_urls[idx];
-        if let Ok(bytes) = download(url) {
-            if let Ok(frames) = decode_gif(&bytes, cols) {
-                if !frames.frames.is_empty() {
-                    return Ok(frames);
+    // Try Tenor queries in order, skip URLs already in collection
+    let queries = [
+        search_query.to_string(),
+        format!("{} {}", character_name, anime_title),
+        format!("{} anime", character_name),
+    ];
+
+    for query in &queries {
+        eprintln!("[dagashi] Tenor search: {}", query);
+        let gif_urls = tenor::search_gifs(query, 10);
+        eprintln!("[dagashi] Got {} URLs", gif_urls.len());
+        for (i, url) in gif_urls.iter().enumerate() {
+            if used_urls.contains(url) {
+                eprintln!("[dagashi] GIF #{} already in collection, skipping", i);
+                continue;
+            }
+            match download(url) {
+                Ok(bytes) => {
+                    match decode_gif(&bytes, cols) {
+                        Ok(mut result) if !result.frames.is_empty() => {
+                            eprintln!("[dagashi] Using GIF #{} from query: {}", i, query);
+                            result.source_url = url.clone();
+                            return Ok(result);
+                        }
+                        Ok(_) => eprintln!("[dagashi] GIF #{} had 0 frames", i),
+                        Err(e) => eprintln!("[dagashi] GIF #{} decode failed: {}", i, e),
+                    }
                 }
+                Err(e) => eprintln!("[dagashi] GIF #{} download failed: {}", i, e),
             }
         }
     }
 
-    // Fallback: Wiki static image
-    let wiki_urls = wiki::get_character_images(character_name);
-    if !wiki_urls.is_empty() {
-        let idx = (stats_seed as usize) % wiki_urls.len();
-        let url = &wiki_urls[idx];
-        if let Ok(bytes) = download(url) {
-            if let Ok(frame) = decode_static_image(&bytes, cols) {
-                return Ok(PipelineResult {
-                    frames: vec![frame],
-                    cols,
-                    rows: 0, // set below
-                    source: "wiki".to_string(),
-                });
+    // Fallback: Jikan character portrait from MAL
+    if let Some(url) = jikan::get_character_image(mal_id, character_name) {
+        if !used_urls.contains(&url) {
+            eprintln!("[dagashi] Trying Jikan image for {}", character_name);
+            if let Ok(bytes) = download(&url) {
+                if let Ok(frame) = decode_static_image(&bytes, cols) {
+                    return Ok(PipelineResult {
+                        frames: vec![frame],
+                        cols,
+                        rows: 0,
+                        source: "jikan".to_string(),
+                        source_url: url,
+                    });
+                }
             }
         }
     }
@@ -99,7 +123,8 @@ fn decode_gif(data: &[u8], cols: u32) -> Result<PipelineResult, String> {
         frames: ascii_frames,
         cols,
         rows: result_rows,
-        source: "giphy".to_string(),
+        source: "tenor".to_string(),
+        source_url: String::new(),
     })
 }
 

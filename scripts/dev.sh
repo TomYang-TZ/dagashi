@@ -1,0 +1,10 @@
+#!/bin/bash
+
+echo "=== DAGASHI DEV ==="
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+"$SCRIPT_DIR/stop.sh"
+sleep 1
+
+echo "Building and launching from source..."
+cd "$SCRIPT_DIR/.." && cargo tauri dev

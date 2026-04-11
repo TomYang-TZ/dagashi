@@ -5,7 +5,7 @@ use crate::config;
 use crate::gacha::Rarity;
 
 const JIKAN_TOP_URL: &str = "https://api.jikan.moe/v4/top/anime";
-const PAGES_TO_FETCH: u32 = 40; // 25 per page × 40 = 1000 anime
+const PAGES_TO_FETCH: u32 = 12; // 25 per page × 12 = 300 anime
 const CACHE_FILE: &str = "anime_db.json";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -23,19 +23,19 @@ pub struct AnimeDb {
     pub fetched_at: String,
 }
 
-// Rarity tiers based on popularity rank:
-//   Legendary: top 25 (rank 1-25) — the mega mainstream icons
-//   Epic: rank 26-100
-//   Rare: rank 101-300
-//   Uncommon: rank 301-600
-//   Common: rank 601-1000
+// Rarity tiers based on popularity rank (top 300 anime):
+//   Legendary: top 10 — the mega mainstream icons
+//   Epic: rank 11-50
+//   Rare: rank 51-150
+//   Uncommon: rank 151-250
+//   Common: rank 251-300
 
 pub fn rank_to_rarity(rank: u32) -> Rarity {
     match rank {
-        1..=25 => Rarity::Legendary,
-        26..=100 => Rarity::Epic,
-        101..=300 => Rarity::Rare,
-        301..=600 => Rarity::Uncommon,
+        1..=10 => Rarity::Legendary,
+        11..=50 => Rarity::Epic,
+        51..=150 => Rarity::Rare,
+        151..=250 => Rarity::Uncommon,
         _ => Rarity::Common,
     }
 }
@@ -178,13 +178,14 @@ mod tests {
     #[test]
     fn rank_to_rarity_mapping() {
         assert_eq!(rank_to_rarity(1), Rarity::Legendary);
-        assert_eq!(rank_to_rarity(25), Rarity::Legendary);
-        assert_eq!(rank_to_rarity(26), Rarity::Epic);
-        assert_eq!(rank_to_rarity(100), Rarity::Epic);
-        assert_eq!(rank_to_rarity(101), Rarity::Rare);
-        assert_eq!(rank_to_rarity(300), Rarity::Rare);
-        assert_eq!(rank_to_rarity(301), Rarity::Uncommon);
-        assert_eq!(rank_to_rarity(601), Rarity::Common);
-        assert_eq!(rank_to_rarity(999), Rarity::Common);
+        assert_eq!(rank_to_rarity(10), Rarity::Legendary);
+        assert_eq!(rank_to_rarity(11), Rarity::Epic);
+        assert_eq!(rank_to_rarity(50), Rarity::Epic);
+        assert_eq!(rank_to_rarity(51), Rarity::Rare);
+        assert_eq!(rank_to_rarity(150), Rarity::Rare);
+        assert_eq!(rank_to_rarity(151), Rarity::Uncommon);
+        assert_eq!(rank_to_rarity(250), Rarity::Uncommon);
+        assert_eq!(rank_to_rarity(251), Rarity::Common);
+        assert_eq!(rank_to_rarity(300), Rarity::Common);
     }
 }
