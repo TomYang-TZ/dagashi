@@ -36,7 +36,7 @@ It won't make you more productive. It won't optimize your workflow. It's just a 
 <p align="center"><em>ASCII art rendered using your actual keystroke characters — <code>e t a o i n s r</code> become your pixels</em></p>
 
 <p align="center">
-  <img src="assets/dagashi-app.png" alt="Dagashi app — pull page with keyboard heatmap and countdown" width="720">
+  <img src="assets/dagashi-pull-demo.gif" alt="Dagashi pull demo — keystroke heatmap, gacha roll, ASCII art reveal" width="720">
 </p>
 
 ## How It Works

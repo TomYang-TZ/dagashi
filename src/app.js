@@ -86,7 +86,7 @@ class AsciiAnimator {
     this.container = container;
     this.frames = frames;
     this.ramp = ramp;
-    this.mode = 'mono';
+    this.mode = 'color';
     this.currentFrame = 0;
     this.speed = 120;
     this.running = false;
@@ -175,6 +175,10 @@ async function initPullPage() {
       '<div class="pull-stats-summary" id="stats-summary">LOADING STATS...</div>' +
       '<div id="pull-countdown" style="font-size:20px;color:var(--text-bright);text-align:center;margin:20px 0;font-family:var(--pixel-font)"></div>' +
       '<div id="pull-countdown-label" style="font-size:7px;color:var(--text-dim);text-align:center;margin-bottom:16px"></div>' +
+      '<div class="mode-toggle mt-8">' +
+        '<button class="mode-btn active" data-mode="color">COLOR</button>' +
+        '<button class="mode-btn" data-mode="mono">MONO</button>' +
+      '</div>' +
       '<div id="pull-result" class="hidden">' +
         '<div class="ascii-display">' +
           '<div class="ascii-art" id="ascii-container"></div>' +
@@ -198,6 +202,14 @@ async function initPullPage() {
     document.getElementById('stats-summary').textContent = 'STATS ERROR: ' + err;
   }
 
+  page.querySelectorAll('.mode-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      page.querySelectorAll('.mode-btn').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      if (currentAnimator) currentAnimator.setMode(btn.dataset.mode);
+    });
+  });
+
   // Check if today's pull already exists
   var hasTodayPull = false;
   try {
@@ -214,7 +226,22 @@ async function initPullPage() {
   }
 
   if (!hasTodayPull) {
+    // Manual pull button
+    var pullBtn = document.createElement('button');
+    pullBtn.className = 'pull-now-btn';
+    pullBtn.textContent = 'PULL NOW';
+    document.getElementById('pull-countdown').after(pullBtn);
+
     // Show countdown to 11:59 PM
+    var countdownInterval;
+    pullBtn.addEventListener('click', function() {
+      pullBtn.disabled = true;
+      pullBtn.textContent = 'PULLING...';
+      document.getElementById('pull-countdown-label').textContent = '';
+      clearInterval(countdownInterval);
+      doPull();
+    });
+
     function updateCountdown() {
       var cd = formatCountdown();
       var el = document.getElementById('pull-countdown');
@@ -232,7 +259,7 @@ async function initPullPage() {
       }
     }
     updateCountdown();
-    var countdownInterval = setInterval(updateCountdown, 1000);
+    countdownInterval = setInterval(updateCountdown, 1000);
   }
 
   updateStatusBar();
@@ -269,6 +296,10 @@ async function doPull() {
     clearInterval(loadingInterval);
     status.textContent = `GOT: ${meta.character} (${meta.rarity})`;
 
+    // Hide pull button
+    var pullBtn = document.querySelector('.pull-now-btn');
+    if (pullBtn) pullBtn.style.display = 'none';
+
     // Load the frames
     const pipeline = await invoke('load_pull_frames', { date: meta.date });
 
@@ -283,7 +314,11 @@ async function doPull() {
     if (currentAnimator) currentAnimator.stop();
 
     currentAnimator = new AsciiAnimator(container, pipeline.frames, ramp);
-    currentAnimator.setMode(meta.color_mode || 'mono');
+    var mode = 'color';
+    document.querySelectorAll('.mode-btn').forEach(function(b) {
+      b.classList.toggle('active', b.dataset.mode === mode);
+    });
+    currentAnimator.setMode(mode);
     currentAnimator.start();
 
     // Result card
@@ -420,8 +455,10 @@ async function viewPull(date) {
       if (currentAnimator) currentAnimator.stop();
       currentAnimator = new AsciiAnimator(container, pipeline.frames, ramp);
 
-      // Lock mode to what was rolled
-      var mode = meta.color_mode || 'mono';
+      var mode = 'color';
+      document.querySelectorAll('.mode-btn').forEach(function(b) {
+        b.classList.toggle('active', b.dataset.mode === mode);
+      });
       currentAnimator.setMode(mode);
       currentAnimator.start();
 

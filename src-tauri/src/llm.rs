@@ -17,6 +17,22 @@ pub struct CharacterSelection {
 
 const JSON_SCHEMA: &str = r#"{"type":"object","properties":{"character":{"type":"string"},"scene":{"type":"string"},"search_query":{"type":"string"},"rarity":{"type":"string"},"flavor_text":{"type":"string"}},"required":["character","scene","search_query","rarity","flavor_text"]}"#;
 
+fn find_claude_binary() -> String {
+    let candidates = [
+        dirs::home_dir().map(|h| h.join(".local/bin/claude")),
+        dirs::home_dir().map(|h| h.join(".claude/bin/claude")),
+        Some(std::path::PathBuf::from("/usr/local/bin/claude")),
+        Some(std::path::PathBuf::from("/opt/homebrew/bin/claude")),
+    ];
+    for candidate in candidates.into_iter().flatten() {
+        if candidate.exists() {
+            return candidate.to_string_lossy().to_string();
+        }
+    }
+    // Fall back to bare name and hope PATH works
+    "claude".to_string()
+}
+
 pub fn select_character(
     stats: &DailyStats,
     rarity: &Rarity,
@@ -53,7 +69,8 @@ Rules:
         rarity = rarity.label(),
     );
 
-    let mut child = Command::new("claude")
+    let claude_bin = find_claude_binary();
+    let mut child = Command::new(&claude_bin)
         .args([
             "-p",
             "--model", &config.cli_model,
@@ -61,6 +78,7 @@ Rules:
             "--output-format", "json",
             "--json-schema", JSON_SCHEMA,
             "--no-session-persistence",
+            "--max-turns", "2",
         ])
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
@@ -76,7 +94,8 @@ Rules:
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("claude exited with error: {stderr}"));
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        return Err(format!("claude exited with error (status {}): stderr={} stdout={}", output.status, stderr, stdout));
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);

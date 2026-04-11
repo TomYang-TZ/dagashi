@@ -82,9 +82,9 @@ pub fn roll_rarity(total_keystrokes: u64, thresholds: &RarityThresholds) -> Rari
 ///   - Volume: more keystrokes → higher chance (sigmoid, threshold ~20k)
 ///   - Peak intensity: concentrated bursts show focus (top hour / avg hour ratio)
 ///   - Character diversity: using more unique chars shows range
-/// Base 15%, caps at ~65%.
+/// Base 30%, caps at ~70%.
 pub fn roll_color(stats: &DailyStats) -> bool {
-    let mut prob: f64 = 0.15; // base 15%
+    let mut prob: f64 = 0.30; // base 30%
 
     // Factor 1: Volume boost (sigmoid, midpoint at 20k keystrokes)
     // At 20k, boost = 0.5 * 0.20 = 0.10. At 60k+, approaches 0.20.
@@ -114,8 +114,8 @@ pub fn roll_color(stats: &DailyStats) -> bool {
     let diversity_boost = (unique_chars / 50.0).min(1.0) * 0.10;
     prob += diversity_boost;
 
-    // Cap at 65%
-    prob = prob.min(0.65);
+    // Cap at 70%
+    prob = prob.min(0.70);
 
     let roll: f64 = rand::thread_rng().gen();
     eprintln!("[dagashi] Color probability: {:.1}% (rolled {:.3})", prob * 100.0, roll);
@@ -164,8 +164,8 @@ mod tests {
         let n = 10_000;
         let colors: usize = (0..n).filter(|_| roll_color(&stats)).count();
         let rate = colors as f64 / n as f64;
-        // Should be close to base rate (~15-20%)
-        assert!(rate < 0.35, "minimal typing color rate too high: {:.1}%", rate * 100.0);
+        // Should be close to base rate (~30-40%)
+        assert!(rate < 0.55, "minimal typing color rate too high: {:.1}%", rate * 100.0);
     }
 
     #[test]
