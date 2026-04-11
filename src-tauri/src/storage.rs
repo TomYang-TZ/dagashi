@@ -5,7 +5,8 @@ use std::fs;
 use crate::config;
 use crate::image_pipeline::PipelineResult;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
 pub struct PullMeta {
     pub date: String,
     pub character: String,
@@ -16,8 +17,9 @@ pub struct PullMeta {
     pub color_mode: String,
     pub frame_count: usize,
     pub anime_title: String,
-    pub anime_rank: u32,       // popularity rank at time of pull
-    pub ipfs_cid: Option<String>, // IPFS content identifier (if pinned)
+    pub anime_rank: u32,            // popularity rank at time of pull
+    pub source_url: Option<String>, // original image URL
+    pub ipfs_cid: Option<String>,   // IPFS content identifier (if pinned)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

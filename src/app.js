@@ -155,16 +155,23 @@ document.querySelectorAll('.nav-tab').forEach(tab => {
 // PULL PAGE
 // ============================================
 
+function currentPullKey() {
+  var now = new Date();
+  var date = now.toISOString().split('T')[0];
+  var hour = (now.getHours() < 10 ? '0' : '') + now.getHours();
+  return date + '-' + hour;
+}
+
 function formatCountdown() {
   var now = new Date();
-  var midnight = new Date(now);
-  midnight.setHours(23, 59, 0, 0); // 11:59 PM
-  var diff = midnight - now;
-  if (diff <= 0) return null; // pull time!
-  var h = Math.floor(diff / 3600000);
-  var m = Math.floor((diff % 3600000) / 60000);
+  var nextHour = new Date(now);
+  nextHour.setMinutes(0, 0, 0);
+  nextHour.setHours(nextHour.getHours() + 1);
+  var diff = nextHour - now;
+  if (diff <= 0) return null;
+  var m = Math.floor(diff / 60000);
   var s = Math.floor((diff % 60000) / 1000);
-  return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+  return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
 }
 
 async function initPullPage() {
@@ -210,57 +217,38 @@ async function initPullPage() {
     });
   });
 
-  // Check if today's pull already exists
-  var hasTodayPull = false;
+  // Check if this hour's pull already exists
+  var pullKey = currentPullKey();
   try {
-    var today = new Date().toISOString().split('T')[0];
-    var todayMeta = await invoke('load_pull_meta', { date: today });
-    if (todayMeta) {
-      hasTodayPull = true;
-      document.getElementById('pull-countdown').textContent = 'TODAY\'S PULL';
-      document.getElementById('pull-countdown-label').textContent = todayMeta.character + ' — ' + todayMeta.anime_title;
-      viewPull(today);
+    var hourMeta = await invoke('load_pull_meta', { date: pullKey });
+    if (hourMeta) {
+      viewPull(pullKey);
     }
   } catch (e) {
-    // No pull today
+    // No pull this hour
   }
 
-  if (!hasTodayPull) {
-    // Manual pull button
-    var pullBtn = document.createElement('button');
-    pullBtn.className = 'pull-now-btn';
-    pullBtn.textContent = 'PULL NOW';
-    document.getElementById('pull-countdown').after(pullBtn);
+  // Always show countdown to next hour
+  function updateCountdown() {
+    var cd = formatCountdown();
+    var el = document.getElementById('pull-countdown');
+    var label = document.getElementById('pull-countdown-label');
+    if (!el) return;
 
-    // Show countdown to 11:59 PM
-    var countdownInterval;
-    pullBtn.addEventListener('click', function() {
-      pullBtn.disabled = true;
-      pullBtn.textContent = 'PULLING...';
-      document.getElementById('pull-countdown-label').textContent = '';
+    var newKey = currentPullKey();
+    if (newKey !== pullKey) {
+      el.textContent = '[ PULLING... ]';
+      label.textContent = 'AUTO-PULL TRIGGERED';
       clearInterval(countdownInterval);
+      pullKey = newKey;
       doPull();
-    });
-
-    function updateCountdown() {
-      var cd = formatCountdown();
-      var el = document.getElementById('pull-countdown');
-      var label = document.getElementById('pull-countdown-label');
-      if (!el) return;
-      if (cd === null) {
-        // It's 11:59 PM — trigger the pull!
-        el.textContent = '[ PULLING... ]';
-        label.textContent = 'AUTO-PULL TRIGGERED';
-        clearInterval(countdownInterval);
-        doPull();
-      } else {
-        el.textContent = cd;
-        label.textContent = 'PULL IN';
-      }
+    } else if (cd !== null) {
+      el.textContent = cd;
+      label.textContent = 'NEXT PULL IN';
     }
-    updateCountdown();
-    countdownInterval = setInterval(updateCountdown, 1000);
   }
+  updateCountdown();
+  var countdownInterval = setInterval(updateCountdown, 1000);
 
   updateStatusBar();
 }
@@ -322,10 +310,8 @@ async function doPull() {
     currentAnimator.start();
 
     // Result card
-    var modeClass = meta.color_mode === 'color' ? 'mode-color' : 'mode-mono';
     document.getElementById('result-card').innerHTML = `
       <span class="rarity-badge rarity-${meta.rarity}">${meta.rarity.toUpperCase()}</span>
-      <span class="mode-badge ${modeClass}">${meta.color_mode.toUpperCase()}</span>
       <div class="result-character">${meta.character}</div>
       <div style="font-size:8px;color:var(--text-dim);margin-bottom:4px">${meta.anime_title || ''} ${meta.anime_rank ? '#' + meta.anime_rank : ''}</div>
       <div class="result-flavor">"${meta.flavor_text}"</div>
@@ -336,19 +322,12 @@ async function doPull() {
     `;
     renderIpfsSlot(meta.date, meta.ipfs_cid);
 
-    // Update countdown area to show result
-    if (countdown) {
-      countdown.textContent = 'TODAY\'S PULL';
-    }
-    var cdLabel = document.getElementById('pull-countdown-label');
-    if (cdLabel) {
-      cdLabel.textContent = meta.character + ' — ' + (meta.anime_title || '');
-    }
 
     // Scroll to result card so it's visible
     setTimeout(function() {
       document.getElementById('result-card').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }, 500);
+
   } catch (err) {
     clearInterval(loadingInterval);
     if (status) status.textContent = 'ERROR: ' + err;
@@ -463,10 +442,8 @@ async function viewPull(date) {
       currentAnimator.start();
 
       // Show result card
-      var modeClass = mode === 'color' ? 'mode-color' : 'mode-mono';
       document.getElementById('result-card').innerHTML =
         '<span class="rarity-badge rarity-' + meta.rarity + '">' + meta.rarity.toUpperCase() + '</span>' +
-        '<span class="mode-badge ' + modeClass + '">' + mode.toUpperCase() + '</span>' +
         '<div class="result-character">' + meta.character + '</div>' +
         '<div style="font-size:8px;color:var(--text-dim);margin-bottom:4px">' + (meta.anime_title || '') + ' ' + (meta.anime_rank ? '#' + meta.anime_rank : '') + '</div>' +
         '<div class="result-flavor">"' + meta.flavor_text + '"</div>' +
