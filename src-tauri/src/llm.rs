@@ -78,7 +78,6 @@ Rules:
             "--output-format", "json",
             "--json-schema", JSON_SCHEMA,
             "--no-session-persistence",
-            "--max-turns", "2",
         ])
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
