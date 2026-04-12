@@ -85,7 +85,7 @@ Only aggregate stats — character frequencies, hourly volume, key regions. No w
 
 ## Credits
 
-[Press Start 2P](https://fonts.google.com/specimen/Press+Start+2P) | [Jikan API](https://jikan.moe) | [Tenor](https://tenor.com) | [Klipy](https://klipy.com) | [Pinata](https://www.pinata.cloud)
+[Press Start 2P](https://fonts.google.com/specimen/Press+Start+2P) | [MyAnimeList](https://myanimelist.net) via [Jikan API](https://jikan.moe) | [Tenor](https://tenor.com) | [Klipy](https://klipy.com) | [Open Vibe Island](https://github.com/Octane0411/open-vibe-island)
 
 ## License
 
