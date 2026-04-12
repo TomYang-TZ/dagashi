@@ -81,24 +81,36 @@ async function invoke(cmd, args) {
 
 // Ramp options — toggle via RAMP_MODE
 const RAMP_BOURKE = " .'`^\",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$";
-const RAMP_ANIME  = ' .:-=+*#%@';
+const RAMP_ANIME  = ' .:-=+oOX#%@WM';
 const RAMP_BLOCK  = ' ░▒▓█';
 var CHAR_RAMP = RAMP_ANIME;
 
-function brightnessToChar(brightness) {
-  const idx = Math.floor((brightness / 255) * (CHAR_RAMP.length - 1));
-  return CHAR_RAMP[Math.min(idx, CHAR_RAMP.length - 1)];
+function brightnessToChar(brightness, min, max) {
+  var range = max - min;
+  var normalized = range > 0 ? (brightness - min) / range : brightness / 255;
+  const idx = Math.floor(normalized * (CHAR_RAMP.length - 1));
+  return CHAR_RAMP[Math.max(0, Math.min(idx, CHAR_RAMP.length - 1))];
 }
 
 function renderAsciiFrame(frame, mode) {
   // frame.pixels = [[{r,g,b,brightness}, ...], ...]
   const rows = frame.pixels;
+
+  // Auto-contrast: find brightness range of this frame
+  var minB = 255, maxB = 0;
+  for (const row of rows) {
+    for (const px of row) {
+      if (px.brightness < minB) minB = px.brightness;
+      if (px.brightness > maxB) maxB = px.brightness;
+    }
+  }
+
   let html = '';
 
   for (const row of rows) {
     html += '<div class="ascii-row">';
     for (const px of row) {
-      const ch = brightnessToChar(px.brightness);
+      const ch = brightnessToChar(px.brightness, minB, maxB);
       const escaped = ch === '<' ? '&lt;' : ch === '>' ? '&gt;' : ch === '&' ? '&amp;' : ch;
 
       if (ch === ' ') {
@@ -193,11 +205,21 @@ document.querySelectorAll('.nav-tab').forEach(tab => {
 // PULL PAGE
 // ============================================
 
-function currentPullKey() {
+function currentHourKey() {
   var now = new Date();
   var date = now.toISOString().split('T')[0];
   var hour = (now.getHours() < 10 ? '0' : '') + now.getHours();
   return date + '-' + hour;
+}
+
+function latestPullKey() {
+  // Find the most recent pull from collection
+  var collection = null;
+  try { collection = window.__cachedCollection; } catch(e) {}
+  if (collection && collection.pulls && collection.pulls.length > 0) {
+    return collection.pulls[collection.pulls.length - 1].date;
+  }
+  return null;
 }
 
 function formatCountdown() {
@@ -219,8 +241,6 @@ async function initPullPage() {
     '<div class="pull-container">' +
       '<div class="pull-stats-summary" id="stats-summary">LOADING STATS...</div>' +
       '<div id="key-heatmap" style="text-align:center;margin:8px 0;min-height:20px;font-family:var(--mono-font)"></div>' +
-      '<div id="pull-countdown" style="font-size:20px;color:var(--text-bright);text-align:center;margin:20px 0;font-family:var(--pixel-font)"></div>' +
-      '<div id="pull-countdown-label" style="font-size:7px;color:var(--text-dim);text-align:center;margin-bottom:16px"></div>' +
       '<div class="mode-toggle mt-8">' +
         '<button class="mode-btn active" data-mode="color">COLOR</button>' +
         '<button class="mode-btn" data-mode="mono">MONO</button>' +
@@ -230,13 +250,16 @@ async function initPullPage() {
         '<button class="mode-btn ramp-btn" data-ramp="block">BLOCK</button>' +
       '</div>' +
       '<div id="pull-result" class="hidden">' +
-        '<div class="ascii-display">' +
+        '<div class="ascii-display" style="position:relative">' +
+          '<button id="pull-back-btn" style="display:none;position:absolute;top:4px;right:4px;z-index:10;font-family:var(--pixel-font);font-size:8px;background:none;border:none;color:var(--text-dim);cursor:pointer;padding:4px 6px;opacity:0.5">✕</button>' +
           '<div class="ascii-art" id="ascii-container"></div>' +
           '<div id="original-container" style="display:none;text-align:center;padding:8px"><img id="original-img" style="max-width:100%;border-radius:4px"></div>' +
         '</div>' +
         '<div class="result-card" id="result-card"></div>' +
       '</div>' +
       '<div id="pull-status" class="text-center mt-16" style="font-size:8px;color:var(--text-dim)"></div>' +
+      '<div id="pull-countdown" style="font-size:14px;color:var(--text-bright);text-align:center;margin:16px 0 4px;font-family:var(--pixel-font)"></div>' +
+      '<div id="pull-countdown-label" style="font-size:7px;color:var(--text-dim);text-align:center"></div>' +
     '</div>';
 
   // Fetch data and update UI
@@ -281,16 +304,25 @@ async function initPullPage() {
     });
   });
 
-  // Check if this hour's pull already exists
-  var pullKey = currentPullKey();
+  // Show latest pull if one exists
   try {
-    var hourMeta = await invoke('load_pull_meta', { date: pullKey });
-    if (hourMeta) {
-      viewPull(pullKey);
+    var collection = await invoke('get_collection');
+    window.__cachedCollection = collection;
+    if (collection.pulls && collection.pulls.length > 0) {
+      var latest = collection.pulls[collection.pulls.length - 1];
+      viewPull(latest.date);
     }
   } catch (e) {
-    // No pull this hour
+    // No pulls yet
   }
+
+  // Close button: dismiss viewed pull, restore countdown
+  document.getElementById('pull-back-btn').addEventListener('click', function() {
+    var resultDiv = document.getElementById('pull-result');
+    if (resultDiv) resultDiv.classList.add('hidden');
+    this.style.display = 'none';
+    if (currentAnimator) { currentAnimator.stop(); currentAnimator = null; }
+  });
 
   // Dev: double-click countdown to trigger pull manually
   document.getElementById('pull-countdown').addEventListener('dblclick', function() {
@@ -300,6 +332,7 @@ async function initPullPage() {
   });
 
   // Always show countdown to next hour
+  var pullKey = currentHourKey();
   function updateCountdown() {
     var cd = formatCountdown();
     var el = document.getElementById('pull-countdown');
@@ -307,7 +340,7 @@ async function initPullPage() {
     if (!el) return;
 
     // Check if hour changed (new pull key)
-    var newKey = currentPullKey();
+    var newKey = currentHourKey();
     if (newKey !== pullKey) {
       el.textContent = '[ PULLING... ]';
       label.textContent = 'AUTO-PULL TRIGGERED';
@@ -516,6 +549,7 @@ async function viewPull(date) {
     var resultDiv = document.getElementById('pull-result');
     if (resultDiv) {
       resultDiv.classList.remove('hidden');
+      document.getElementById('pull-back-btn').style.display = '';
       var container = document.getElementById('ascii-container');
       if (currentAnimator) currentAnimator.stop();
       currentAnimator = new AsciiAnimator(container, pipeline.frames);
@@ -684,11 +718,21 @@ async function renderSettings() {
 
   page.innerHTML = `
     <div class="settings-section">
-      <div class="settings-label">GIPHY API KEY</div>
-      <input class="settings-input" id="set-giphy-key"
-        value="${config.giphy_api_key || ''}"
-        placeholder="LEAVE BLANK FOR DEMO KEY">
-      <div class="settings-hint">FREE KEY FROM DEVELOPERS.GIPHY.COM/DASHBOARD</div>
+      <div class="settings-label">IMAGE SOURCE</div>
+      <div class="settings-row">
+        <button class="mode-btn ${config.image_source === 'tenor' ? 'active' : ''}"
+          data-source="tenor">TENOR</button>
+        <button class="mode-btn ${config.image_source === 'klipy' ? 'active' : ''}"
+          data-source="klipy">KLIPY</button>
+      </div>
+    </div>
+
+    <div class="settings-section" id="klipy-key-section" style="${config.image_source === 'klipy' ? '' : 'display:none'}">
+      <div class="settings-label">KLIPY API KEY</div>
+      <input class="settings-input" id="set-klipy-key"
+        value="${config.klipy_api_key || ''}"
+        placeholder="GET KEY FROM PARTNER.KLIPY.COM">
+      <div class="settings-hint">FREE API KEY FROM PARTNER.KLIPY.COM/API-KEYS</div>
     </div>
 
     <div class="settings-section">
@@ -717,7 +761,9 @@ async function renderSettings() {
   document.getElementById('save-settings').addEventListener('click', async () => {
     const modelBtn = page.querySelector('[data-model].active');
 
-    config.giphy_api_key = document.getElementById('set-giphy-key').value || null;
+    const sourceBtn = page.querySelector('[data-source].active');
+    config.image_source = sourceBtn?.dataset.source || 'tenor';
+    config.klipy_api_key = document.getElementById('set-klipy-key').value || null;
     config.pinata_jwt = document.getElementById('set-pinata-jwt').value || null;
     config.llm.cli_model = modelBtn?.dataset.model || 'haiku';
 
@@ -734,6 +780,14 @@ async function renderSettings() {
     btn.addEventListener('click', () => {
       page.querySelectorAll('[data-model]').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
+    });
+  });
+  page.querySelectorAll('[data-source]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      page.querySelectorAll('[data-source]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('klipy-key-section').style.display =
+        btn.dataset.source === 'klipy' ? '' : 'none';
     });
   });
 }

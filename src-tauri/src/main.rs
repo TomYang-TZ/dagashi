@@ -5,6 +5,7 @@ mod config;
 mod gacha;
 mod image_pipeline;
 mod jikan;
+mod klipy;
 mod tenor;
 mod ipfs;
 mod keylogger;
@@ -201,14 +202,18 @@ fn do_pull_inner(
         anime.mal_id,
         cfg.ascii.columns,
         &used_urls,
+        &cfg.image_source,
+        cfg.klipy_api_key.as_deref(),
     )?;
     eprintln!("[dagashi] Got {} frames from {}", pipeline.frames.len(), pipeline.source);
 
-    // 6. Save pull — keyed by date + hour
+    // 6. Save pull — keyed by date + hour + minute
+    let now = chrono::Local::now();
     let pull_key = format!(
-        "{}-{:02}",
+        "{}-{:02}{:02}",
         stats_snapshot.date,
-        chrono::Local::now().hour()
+        now.hour(),
+        now.minute()
     );
     let mut meta = storage::PullMeta {
         date: pull_key,
@@ -222,6 +227,7 @@ fn do_pull_inner(
         anime_title: anime.title.clone(),
         anime_rank: anime.popularity_rank,
         source_url: Some(pipeline.source_url.clone()).filter(|s| !s.is_empty()),
+        search_query: Some(pipeline.matched_query.clone()).filter(|s| !s.is_empty()),
         ipfs_cid: None,
     };
 

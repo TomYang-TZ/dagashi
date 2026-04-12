@@ -9,7 +9,8 @@ pub struct Config {
     pub rarity_thresholds: RarityThresholds,
     pub llm: LlmConfig,
     pub ascii: AsciiConfig,
-    pub giphy_api_key: Option<String>,
+    pub image_source: String, // "tenor" or "klipy"
+    pub klipy_api_key: Option<String>,
     pub pinata_jwt: Option<String>,
 }
 
@@ -76,7 +77,8 @@ impl Default for Config {
             ascii: AsciiConfig {
                 columns: 100,
             },
-            giphy_api_key: None,
+            image_source: "tenor".to_string(),
+            klipy_api_key: None,
             pinata_jwt: None,
         }
     }

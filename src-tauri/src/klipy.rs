@@ -1,0 +1,85 @@
+use serde::Deserialize;
+
+const KLIPY_SEARCH_URL: &str = "https://api.klipy.com/api/v1";
+
+#[derive(Deserialize)]
+struct KlipyResponse {
+    data: KlipyData,
+}
+
+#[derive(Deserialize)]
+struct KlipyData {
+    data: Vec<KlipyItem>,
+}
+
+#[derive(Deserialize)]
+struct KlipyItem {
+    file: KlipyFile,
+}
+
+#[derive(Deserialize)]
+struct KlipyFile {
+    hd: Option<KlipyFormats>,
+    md: Option<KlipyFormats>,
+}
+
+#[derive(Deserialize)]
+struct KlipyFormats {
+    gif: Option<KlipyMedia>,
+}
+
+#[derive(Deserialize)]
+struct KlipyMedia {
+    url: String,
+}
+
+/// Search Klipy for GIFs matching query. Returns list of GIF URLs.
+pub fn search_gifs(query: &str, limit: usize, api_key: &str) -> Vec<String> {
+    let url = format!(
+        "{KLIPY_SEARCH_URL}/{api_key}/gifs/search?q={}&per_page={limit}&content_filter=high",
+        urlencoded(query)
+    );
+
+    let resp = match reqwest::blocking::Client::builder()
+        .user_agent("Dagashi/0.1.0")
+        .build()
+        .ok()
+        .and_then(|c| c.get(&url).send().ok())
+    {
+        Some(r) => r,
+        None => return vec![],
+    };
+
+    if !resp.status().is_success() {
+        eprintln!("[dagashi] Klipy search failed: {}", resp.status());
+        return vec![];
+    }
+
+    let body: KlipyResponse = match resp.json() {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("[dagashi] Klipy parse error: {}", e);
+            return vec![];
+        }
+    };
+
+    body.data.data
+        .into_iter()
+        .filter_map(|item| {
+            // Prefer HD GIF, fall back to MD
+            item.file
+                .hd
+                .and_then(|f| f.gif)
+                .or_else(|| item.file.md.and_then(|f| f.gif))
+                .map(|m| m.url)
+        })
+        .take(limit)
+        .collect()
+}
+
+fn urlencoded(s: &str) -> String {
+    s.replace(' ', "+")
+        .replace('&', "%26")
+        .replace('?', "%3F")
+        .replace('#', "%23")
+}

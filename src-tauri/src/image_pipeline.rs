@@ -5,6 +5,7 @@ use std::collections::HashSet;
 use std::io::Cursor;
 
 use crate::jikan;
+use crate::klipy;
 use crate::tenor;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -26,8 +27,9 @@ pub struct PipelineResult {
     pub frames: Vec<AsciiFrame>,
     pub cols: u32,
     pub rows: u32,
-    pub source: String,     // "tenor" or "jikan"
-    pub source_url: String, // original image URL
+    pub source: String,        // "tenor" or "jikan"
+    pub source_url: String,    // original image URL
+    pub matched_query: String, // query that found the image
 }
 
 /// Full pipeline: search → download → extract frames → compute pixel grid.
@@ -40,8 +42,9 @@ pub fn fetch_frames(
     mal_id: u64,
     cols: u32,
     used_urls: &HashSet<String>,
+    image_source: &str,
+    klipy_api_key: Option<&str>,
 ) -> Result<PipelineResult, String> {
-    // Try Tenor queries in order, skip URLs already in collection
     let queries = [
         search_query.to_string(),
         format!("{} {}", character_name, anime_title),
@@ -49,8 +52,17 @@ pub fn fetch_frames(
     ];
 
     for query in &queries {
-        eprintln!("[dagashi] Tenor search: {}", query);
-        let gif_urls = tenor::search_gifs(query, 10);
+        let gif_urls = match image_source {
+            "klipy" => {
+                let key = klipy_api_key.ok_or("klipy_api_key not set")?;
+                eprintln!("[dagashi] Klipy search: {}", query);
+                klipy::search_gifs(query, 10, key)
+            }
+            _ => {
+                eprintln!("[dagashi] Tenor search: {}", query);
+                tenor::search_gifs(query, 10)
+            }
+        };
         eprintln!("[dagashi] Got {} URLs", gif_urls.len());
         for (i, url) in gif_urls.iter().enumerate() {
             if used_urls.contains(url) {
@@ -62,7 +74,9 @@ pub fn fetch_frames(
                     match decode_gif(&bytes, cols) {
                         Ok(mut result) if !result.frames.is_empty() => {
                             eprintln!("[dagashi] Using GIF #{} from query: {}", i, query);
+                            result.source = image_source.to_string();
                             result.source_url = url.clone();
+                            result.matched_query = query.clone();
                             return Ok(result);
                         }
                         Ok(_) => eprintln!("[dagashi] GIF #{} had 0 frames", i),
@@ -86,6 +100,7 @@ pub fn fetch_frames(
                         rows: 0,
                         source: "jikan".to_string(),
                         source_url: url,
+                        matched_query: character_name.to_string(),
                     });
                 }
             }
@@ -100,19 +115,30 @@ fn download(url: &str) -> Result<Vec<u8>, String> {
     resp.bytes().map(|b| b.to_vec()).map_err(|e| e.to_string())
 }
 
+const MAX_FRAMES: usize = 40;
+
 fn decode_gif(data: &[u8], cols: u32) -> Result<PipelineResult, String> {
     let cursor = Cursor::new(data);
     let decoder = GifDecoder::new(cursor).map_err(|e| e.to_string())?;
-    let frames = decoder.into_frames();
+
+    // Collect all frames first so we can sample evenly
+    let all_frames: Vec<_> = decoder
+        .into_frames()
+        .take(200) // hard cap to avoid huge GIFs
+        .filter_map(|f| f.ok())
+        .collect();
+
+    let total = all_frames.len();
+    eprintln!("[dagashi] GIF has {} total frames", total);
+    let step = if total <= MAX_FRAMES { 1 } else { total / MAX_FRAMES };
 
     let mut ascii_frames = Vec::new();
     let mut result_rows = 0;
 
-    for (i, frame) in frames.enumerate() {
-        if i >= 20 {
-            break; // cap at 20 frames
+    for (i, frame) in all_frames.into_iter().enumerate() {
+        if i % step != 0 || ascii_frames.len() >= MAX_FRAMES {
+            continue;
         }
-        let frame = frame.map_err(|e| e.to_string())?;
         let img = DynamicImage::ImageRgba8(frame.into_buffer());
         let af = image_to_pixel_grid(&img, cols);
         result_rows = af.pixels.len() as u32;
@@ -123,8 +149,9 @@ fn decode_gif(data: &[u8], cols: u32) -> Result<PipelineResult, String> {
         frames: ascii_frames,
         cols,
         rows: result_rows,
-        source: "tenor".to_string(),
+        source: String::new(),
         source_url: String::new(),
+        matched_query: String::new(),
     })
 }
 
@@ -164,4 +191,26 @@ fn image_to_pixel_grid(img: &DynamicImage, cols: u32) -> AsciiFrame {
     }
 
     AsciiFrame { pixels }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reprocess_erza() {
+        let url = "https://media.tenor.com/e8yuV9CLbLEAAAAd/erza-scarlet.gif";
+        let bytes = download(url).expect("download failed");
+        let result = decode_gif(&bytes, 100).expect("decode failed");
+        eprintln!("Erza: {} frames sampled from GIF", result.frames.len());
+        assert!(!result.frames.is_empty());
+
+        // Save to pull directory
+        let dir = dirs::home_dir().unwrap().join(".dagashi/pulls/2026-04-11-13");
+        let mut full_result = result;
+        full_result.source_url = url.to_string();
+        let json = serde_json::to_string(&full_result).unwrap();
+        std::fs::write(dir.join("frames.json"), json).unwrap();
+        eprintln!("Saved {} frames to {:?}", full_result.frames.len(), dir);
+    }
 }
