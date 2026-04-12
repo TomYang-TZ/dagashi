@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/dagashi-banner.gif" alt="Dagashi — mono and color ASCII art side by side" width="800">
+  <img src="assets/dagashi-banner.gif" alt="Dagashi" width="800">
 </p>
 
 <h1 align="center">D A G A S H I</h1>
@@ -11,198 +11,81 @@
 <p align="center">
   <img src="https://img.shields.io/badge/platform-macOS-000?style=flat-square&logo=apple" alt="macOS">
   <img src="https://img.shields.io/badge/built_with-Tauri_v2-24C8DB?style=flat-square&logo=tauri" alt="Tauri v2">
-  <img src="https://img.shields.io/badge/rust-000?style=flat-square&logo=rust" alt="Rust">
-  <img src="https://img.shields.io/badge/anime-300+-E91E63?style=flat-square" alt="300+ anime">
-  <img src="https://img.shields.io/badge/dagashi-駄菓子-C4A35A?style=flat-square" alt="Dagashi">
+  <img src="https://img.shields.io/badge/swift-F05138?style=flat-square&logo=swift&logoColor=white" alt="Swift">
+  <img src="https://img.shields.io/badge/anime-300-E91E63?style=flat-square" alt="300 anime">
 </p>
 
 ---
 
-Dagashi is a desktop app that silently records your keystrokes all day, then uses them to generate gacha pulls of animated ASCII art from 300 top anime series. More popular anime are rarer pulls. Your typing patterns determine which character you get.
+A desktop app that counts your keystrokes, then turns them into gacha pulls of animated ASCII art from 300 top anime. More popular anime = rarer pulls.
 
-It won't make you more productive. It won't optimize your workflow. It's just a small, quiet thing that turns your day into something to look forward to.
+Includes a **Dynamic Island** overlay at the macOS notch — a pixel art dagashi shop with walking characters, that expands to show your latest pull.
 
-<table align="center">
-<tr>
-<td align="center"><strong>Kagura — mono</strong></td>
-<td align="center"><strong>Kagura — color</strong></td>
-</tr>
-<tr>
-<td><img src="assets/kagura-mono.gif" alt="Kagura monochrome ASCII art" width="360"></td>
-<td><img src="assets/kagura-color.gif" alt="Kagura color ASCII art" width="360"></td>
-</tr>
-</table>
+## Quick Start
 
-<p align="center"><em>ASCII art rendered in clean and block modes — switchable in real-time</em></p>
+```bash
+git clone https://github.com/tomyangdev/dagashi.git
+cd dagashi && pnpm install
+./scripts/install.sh
+./scripts/start.sh
+```
 
-<p align="center">
-  <img src="assets/dagashi-pull-demo.gif" alt="Dagashi pull demo — keystroke heatmap, gacha roll, ASCII art reveal" width="720">
-</p>
+**Requires:** macOS 14+, Rust, pnpm, [Claude Code CLI](https://claude.ai/claude-code)
 
 ## How It Works
 
-```
-  Terminal (daemon)                    Dagashi.app (UI)
- ┌──────────────────┐               ┌──────────────────┐
- │ dagashi-daemon   │   writes to   │  Reads stats     │
- │                  │──────────────►│  from disk        │
- │ Captures ALL     │  ~/.dagashi/  │                  │
- │ keystrokes via   │  stats/*.json │  Shows keyboard  │
- │ CGEventTap       │               │  heatmap, pulls, │
- │                  │               │  gallery, roster  │
- └──────────────────┘               └──────────────────┘
-```
-
-1. **Type normally.** A lightweight daemon runs in your terminal, counting every keystroke globally. It never records what you type — only how much and which keys. No passwords, no credit cards, nothing reconstructable.
-
-2. **Every hour, a new pull triggers automatically.** Your keystroke volume determines the rarity odds. More typing = better chance of a rare pull. Stats accumulate all day and reset at midnight.
-
-3. **An AI picks your character.** Based on your typing stats — backspace ratio, shift usage, peak hours — Claude interprets your "typing personality" and picks a character + scene that matches.
-
-4. **Animated ASCII art appears.** A GIF of that character is fetched from Tenor, converted to ASCII art, and rendered in a retro pixel UI with a live keyboard heatmap. Toggle between clean and block character modes.
-
-5. **Collect them all.** Your pull is saved to a gallery. Every day is a new pull. Rarity shifts over time as anime popularity changes.
+1. A daemon counts keystrokes (never records what you type — only counts)
+2. Every hour, your stats trigger a gacha pull
+3. Claude picks a character matching your typing personality
+4. A GIF is fetched, converted to ASCII art, and rendered
 
 ## The Gacha
 
-300 anime from [MyAnimeList](https://myanimelist.net) (via Jikan API), ranked by popularity. **More popular = rarer.**
+300 anime from MAL, ranked by popularity.
 
 | Rarity | Rank | Examples |
 |--------|------|----------|
-| **Legendary** | #1-10 | Attack on Titan, Death Note, Fullmetal Alchemist |
-| **Epic** | #11-50 | Steins;Gate, Gintama, Mob Psycho 100, Cowboy Bebop |
-| **Rare** | #51-150 | Monster, Trigun, Great Teacher Onizuka |
-| **Uncommon** | #151-250 | Mid-tier shows you might discover |
-| **Common** | #251-300 | The edge of the top 300 |
+| **Legendary** | #1-10 | Attack on Titan, Death Note |
+| **Epic** | #11-50 | Steins;Gate, Gintama |
+| **Rare** | #51-150 | Monster, Trigun |
+| **Uncommon** | #151-250 | Mid-tier discoveries |
+| **Common** | #251-300 | Edge of the top 300 |
 
-The anime database refreshes every 14 days. A show that's Common today could become Rare tomorrow if it blows up. Your collection's value is alive.
+## Dynamic Island
 
-## Privacy
+A standalone Swift app that sits at the macOS notch.
 
-Dagashi records keystrokes but **never stores what you typed**. Only aggregate stats:
+- **Collapsed:** pixel art dagashi shop with walkers and bikers
+- **Expanded:** click to reveal latest pull as animated ASCII art
+- **Auto-cycles:** color clean → color block → mono clean → mono block
+- Watches `~/.dagashi/` for new pulls
 
-- Character frequencies (`e: 4312, t: 3100, ...`)
-- Category counts (letters, numbers, symbols)
-- Hourly volume patterns
-- Key region heatmaps (left hand vs right hand)
-
-No words. No sentences. No order. A **deaf mode** toggle instantly stops all recording when you're typing sensitive info.
-
-## Features
-
-- **Live keyboard heatmap** — see your typing patterns in real-time
-- **Hourly auto-pull** with countdown timer — stats reset at midnight
-- **Mono or color** ASCII art with clean and block character modes
-- **IPFS pull receipts** — optional verifiable proof-of-pull pinned via Pinata
-- **300 top anime** from MyAnimeList with popularity-based rarity
-- **AI character selection** via Claude CLI — interprets your typing personality
-- **Gallery** of past pulls with replay
-- **Roster** showing all 300 anime with rarity tiers and MAL scores
-- **Deaf mode** — one-click pause on keystroke recording
-- **Retro pixel UI** — Press Start 2P font, CRT scanlines, amber-on-dark
-- **All keys captured** — letters, numbers, `⌘` `⌥` `⇧` `⌃` `⏎` `⌫` arrows, function keys
-
-## Installation
-
-### Prerequisites
-
-- **macOS** (with Input Monitoring permission for the terminal)
-- **Rust** — `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
-- **pnpm** — `npm install -g pnpm`
-- **[Claude Code CLI](https://claude.ai/claude-code)** — for AI character selection during pulls
-
-### Build & Install
+## Scripts
 
 ```bash
-# Clone
-git clone https://github.com/tomyangdev/dagashi.git
-cd dagashi
-pnpm install
-
-# Build and install everything
-./scripts/install.sh
+./scripts/start.sh      # Start daemon + app + island
+./scripts/stop.sh        # Stop everything
+./scripts/dev.sh         # Build from source + launch
+./scripts/rebuild.sh     # Full rebuild + install + start
 ```
-
-### Run
-
-```bash
-./scripts/start.sh        # Start daemon + open app
-./scripts/stop.sh          # Stop everything
-./scripts/restart.sh       # Stop then start
-./scripts/dev.sh           # Build from source + launch (development)
-./scripts/rebuild.sh       # Full rebuild, install to /Applications, start
-```
-
-On first launch:
-1. macOS may prompt for **Input Monitoring** permission — grant it
-2. Start typing — the keyboard heatmap lights up in real-time
-3. Wait for the top of the next hour — your pull triggers automatically
 
 ## Architecture
 
-Two processes, shared filesystem:
+Three processes, shared filesystem (`~/.dagashi/`):
 
-| Component | Language | Role |
-|-----------|----------|------|
-| **dagashi-daemon** | Rust + Swift helper | Captures keystrokes globally via CGEventTap, writes stats JSON to `~/.dagashi/stats/` every 2 seconds |
-| **Dagashi.app** | Rust (Tauri v2) + JS | Reads stats from disk, renders UI, runs gacha pulls, manages gallery |
+| Component | Stack | Role |
+|-----------|-------|------|
+| **dagashi-daemon** | Rust + Swift | Keystroke capture via CGEventTap |
+| **Dagashi.app** | Tauri v2 (Rust + JS) | UI, gacha pulls, gallery |
+| **DagashiIsland** | Swift/SwiftUI | Dynamic Island overlay at notch |
 
-```
-~/.dagashi/
-├── stats/
-│   └── 2026-04-10.json    ← daemon writes, app reads
-├── pulls/
-│   └── 2026-04-10/
-│       ├── meta.json       ← character, rarity, flavor text, IPFS CID
-│       ├── frames.json     ← ASCII art pixel data
-│       ├── receipt.json    ← IPFS pull receipt (if Pinata configured)
-│       └── cid.txt         ← IPFS content identifier
-├── collection.json         ← all pulls indexed
-├── anime_db.json           ← 300 anime cached from MAL
-├── config.json             ← user settings
-└── bin/
-    └── dagashi-keytap      ← compiled Swift helper for CGEventTap
-```
+## Privacy
 
-## Tech Stack
-
-| Layer | Technology | Purpose |
-|-------|-----------|---------|
-| Daemon | Rust + Swift | Keystroke capture via CGEventTap |
-| App | Tauri v2 | Rust backend + webview frontend |
-| Frontend | Vanilla JS | Retro pixel UI, ASCII renderer, keyboard heatmap |
-| AI | Claude CLI | Character selection from typing personality |
-| Images | Tenor | Animated GIF search for anime characters |
-| Anime DB | Jikan API | 300 anime ranked by MAL popularity |
-
-## Why "Dagashi"?
-
-[Dagashi](https://en.wikipedia.org/wiki/Dagashi) (駄菓子) are cheap Japanese penny candies — the kind you find in corner stores for a few yen. They cost almost nothing.
-
-But walk into a dagashi shop and watch what happens. Kids crowd around the shelves, eyes wide, agonizing over which 10-yen candy to pick. Adults stop in and suddenly they're eight years old again. The joy is completely disproportionate to the thing itself — and that's the whole point.
-
-Dagashi aren't valuable because they're useful. They're valuable because they turn an ordinary moment into a small, unexpected delight. Cheap, accessible, unnecessary, and somehow unforgettable.
-
-This app is the same idea. Your keystrokes become penny candies — tiny, colorful rewards that nobody asked for but everyone smiles at. The Gintama crew hangs out at a dagashi shop for a reason. Some of the best things in life cost nothing and do nothing.
-
-## Roadmap
-
-- [ ] Reveal animation with rarity-specific effects
-- [x] IPFS pull receipts for verifiable collection
-- [ ] Server-side gacha rolls for anti-cheat
-- [ ] Multiplayer leaderboard and collection comparison
-- [ ] Mobile port (Tauri v2 supports iOS/Android)
-- [ ] Nerd Font character rendering for special keys
-- [ ] Launch Agent for auto-start daemon at login
+Only aggregate stats — character frequencies, hourly volume, key regions. No words, no sentences, no order. **Deaf mode** instantly pauses recording.
 
 ## Credits
 
-- **[Press Start 2P](https://fonts.google.com/specimen/Press+Start+2P)** by CodeMan38 — the pixel font that gives Dagashi its retro soul
-- **[image](https://crates.io/crates/image)** crate — GIF/PNG/JPEG decoding and pixel-grid conversion for ASCII art rendering
-- **[Jikan API](https://jikan.moe)** — unofficial MyAnimeList API powering the anime database
-- **[Tenor](https://tenor.com)** — animated GIF search for character art
-- **[Jikan Character API](https://jikan.moe)** — fallback character portraits from MyAnimeList
-- **[Pinata](https://www.pinata.cloud)** — IPFS pinning service for verifiable pull receipts
+[Press Start 2P](https://fonts.google.com/specimen/Press+Start+2P) | [Jikan API](https://jikan.moe) | [Tenor](https://tenor.com) | [Klipy](https://klipy.com) | [Pinata](https://www.pinata.cloud)
 
 ## License
 

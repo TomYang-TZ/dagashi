@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #1a1610;
+    overflow: hidden;
+    font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  }
+
+  /* === ASCII ART === */
+  .ascii-art {
+    font-size: 4px;
+    line-height: 5px;
+    white-space: pre;
+    text-align: center;
+    padding: 4px 2px;
+  }
+
+  /* === CANDY WRAPPER LAYERS === */
+  .wrapper-sheen {
+    position: fixed;
+    top: -50%; left: -50%;
+    width: 200%; height: 200%;
+    background: linear-gradient(
+      135deg,
+      transparent 0%,
+      rgba(255,255,255,0.04) 20%,
+      transparent 30%,
+      rgba(255,255,255,0.06) 45%,
+      transparent 55%,
+      rgba(255,255,255,0.03) 70%,
+      transparent 80%,
+      rgba(255,255,255,0.05) 90%,
+      transparent 100%
+    );
+    pointer-events: none;
+    z-index: 10;
+    animation: sheen-drift 8s ease-in-out infinite;
+  }
+
+  @keyframes sheen-drift {
+    0%   { transform: translate(0%, 0%) rotate(0deg); }
+    25%  { transform: translate(5%, 3%) rotate(0.5deg); }
+    50%  { transform: translate(-3%, 5%) rotate(-0.3deg); }
+    75%  { transform: translate(4%, -2%) rotate(0.4deg); }
+    100% { transform: translate(0%, 0%) rotate(0deg); }
+  }
+
+  .wrapper-crinkle {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background:
+      repeating-linear-gradient(47deg, transparent, transparent 12px, rgba(255,255,255,0.012) 12px, rgba(255,255,255,0.012) 13px),
+      repeating-linear-gradient(133deg, transparent, transparent 18px, rgba(255,255,255,0.008) 18px, rgba(255,255,255,0.008) 19px);
+    pointer-events: none;
+    z-index: 11;
+    animation: crinkle-shift 12s ease-in-out infinite;
+  }
+
+  @keyframes crinkle-shift {
+    0%   { transform: translate(0, 0); }
+    50%  { transform: translate(1px, -1px); }
+    100% { transform: translate(0, 0); }
+  }
+
+  .wrapper-refraction {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    backdrop-filter: blur(0.2px);
+    pointer-events: none;
+    z-index: 12;
+    animation: refraction-pulse 6s ease-in-out infinite;
+  }
+
+  @keyframes refraction-pulse {
+    0%   { backdrop-filter: blur(0.2px); }
+    50%  { backdrop-filter: blur(0.4px); }
+    100% { backdrop-filter: blur(0.2px); }
+  }
+
+  /* Transition rustle */
+  body.transitioning .wrapper-sheen {
+    animation: sheen-rustle 0.6s ease-in-out;
+  }
+  body.transitioning .wrapper-crinkle {
+    animation: crinkle-rustle 0.6s ease-in-out;
+  }
+  body.transitioning .wrapper-refraction {
+    animation: refraction-rustle 0.6s ease-in-out;
+  }
+
+  @keyframes sheen-rustle {
+    0%   { transform: translate(0%, 0%) rotate(0deg); }
+    30%  { transform: translate(8%, 5%) rotate(1.5deg); }
+    60%  { transform: translate(-5%, 8%) rotate(-1deg); }
+    100% { transform: translate(0%, 0%) rotate(0deg); }
+  }
+
+  @keyframes crinkle-rustle {
+    0%   { transform: translate(0, 0); }
+    30%  { transform: translate(2px, -2px); }
+    100% { transform: translate(0, 0); }
+  }
+
+  @keyframes refraction-rustle {
+    0%   { backdrop-filter: blur(0.2px); }
+    30%  { backdrop-filter: blur(1.2px); }
+    100% { backdrop-filter: blur(0.2px); }
+  }
+
+  /* Mode indicator */
+  .mode-indicator {
+    position: fixed;
+    bottom: 4px; right: 6px;
+    font-size: 5px;
+    color: rgba(196,163,90,0.3);
+    z-index: 20;
+    letter-spacing: 1px;
+  }
+
+  /* Loading state */
+  .loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    color: rgba(196,163,90,0.5);
+    font-size: 8px;
+    letter-spacing: 2px;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 0.8; }
+  }
+</style>
+</head>
+<body>
+
+<div class="ascii-art" id="ascii-art">
+  <div class="loading" id="loading">PULLING...</div>
+</div>
+
+<!-- Candy wrapper overlay -->
+<div class="wrapper-sheen"></div>
+<div class="wrapper-crinkle"></div>
+<div class="wrapper-refraction"></div>
+
+<div class="mode-indicator" id="mode-indicator"></div>
+
+<script>
+// === RAMPS ===
+const RAMP_CLEAN = ' .:-=+oOX#%@WM';
+const RAMP_BLOCK = ' ░▒▓█';
+
+// === MODES ===
+const MODES = [
+  { color: 'color', ramp: 'clean', label: 'COLOR · CLEAN' },
+  { color: 'color', ramp: 'block', label: 'COLOR · BLOCK' },
+  { color: 'mono',  ramp: 'clean', label: 'MONO · CLEAN' },
+  { color: 'mono',  ramp: 'block', label: 'MONO · BLOCK' },
+];
+
+let frames = [];
+let currentFrame = 0;
+let currentMode = 0;
+let animationId = null;
+let lastFrameTime = 0;
+let sourceUrl = '';
+const FRAME_SPEED = 120;
+const ORIGINAL_HOLD = 3000; // ms to show original image
+
+// === RENDERING ===
+function renderFrame(frame, mode) {
+  const ramp = mode.ramp === 'block' ? RAMP_BLOCK : RAMP_CLEAN;
+  const rows = frame.pixels;
+
+  // Auto-contrast
+  let minB = 255, maxB = 0;
+  for (const row of rows) {
+    for (const px of row) {
+      if (px.brightness < minB) minB = px.brightness;
+      if (px.brightness > maxB) maxB = px.brightness;
+    }
+  }
+
+  let html = '';
+  for (const row of rows) {
+    html += '<div>';
+    for (const px of row) {
+      const range = maxB - minB;
+      const norm = range > 0 ? (px.brightness - minB) / range : px.brightness / 255;
+      const idx = Math.floor(norm * (ramp.length - 1));
+      const ch = ramp[Math.max(0, Math.min(idx, ramp.length - 1))];
+      const escaped = ch === '<' ? '&lt;' : ch === '>' ? '&gt;' : ch === '&' ? '&amp;' : ch;
+
+      if (ch === ' ') {
+        html += ' ';
+      } else if (mode.color === 'color') {
+        html += '<span style="color:rgb('+px.r+','+px.g+','+px.b+')">'+escaped+'</span>';
+      } else {
+        const alpha = (px.brightness / 255 * 0.8 + 0.2).toFixed(2);
+        html += '<span style="color:rgba(196,163,90,'+alpha+')">'+escaped+'</span>';
+      }
+    }
+    html += '</div>';
+  }
+  return html;
+}
+
+function animate(now) {
+  if (!frames.length) return;
+
+  if (now - lastFrameTime >= FRAME_SPEED) {
+    lastFrameTime = now;
+    const mode = MODES[currentMode];
+    const art = document.getElementById('ascii-art');
+    art.innerHTML = renderFrame(frames[currentFrame], mode);
+    reportHeight();
+
+    currentFrame++;
+
+    // End of frames for this mode — transition to next
+    if (currentFrame >= frames.length) {
+      currentFrame = 0;
+      currentMode = (currentMode + 1) % MODES.length;
+
+      // Trigger wrapper rustle
+      document.body.classList.add('transitioning');
+      setTimeout(() => document.body.classList.remove('transitioning'), 600);
+
+      document.getElementById('mode-indicator').textContent = MODES[currentMode].label;
+    }
+  }
+
+  animationId = requestAnimationFrame(animate);
+}
+
+// === API: called from Swift via evaluateJavaScript ===
+
+// Load frames data (called by Swift when a new pull arrives)
+function loadFrames(framesJson, url) {
+  const data = typeof framesJson === 'string' ? JSON.parse(framesJson) : framesJson;
+  frames = data.frames || [];
+  sourceUrl = url || data.source_url || '';
+  currentFrame = 0;
+  currentMode = 0;
+
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('mode-indicator').textContent = MODES[0].label;
+
+  if (animationId) cancelAnimationFrame(animationId);
+  animationId = requestAnimationFrame(animate);
+}
+
+// Show loading state (called by Swift when pull starts)
+function showLoading() {
+  if (animationId) cancelAnimationFrame(animationId);
+  frames = [];
+  document.getElementById('ascii-art').innerHTML = '<div class="loading">PULLING...</div>';
+  document.getElementById('mode-indicator').textContent = '';
+}
+
+// Show original image
+function showOriginal(url) {
+  if (animationId) cancelAnimationFrame(animationId);
+  document.getElementById('ascii-art').innerHTML =
+    '<img src="' + url + '" style="max-width:100%;max-height:100%;border-radius:4px">';
+  document.getElementById('mode-indicator').textContent = 'ORIGINAL';
+}
+
+// Signal to Swift that the page is ready
+if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.dagashi) {
+  window.webkit.messageHandlers.dagashi.postMessage('ready');
+}
+
+// Report content height after each render
+function reportHeight() {
+  var art = document.getElementById('ascii-art');
+  if (art && window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.dagashi) {
+    window.webkit.messageHandlers.dagashi.postMessage('height:' + art.scrollHeight);
+  }
+}
+</script>
+</body>
+</html>

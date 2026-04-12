@@ -853,13 +853,13 @@ async function updateStatusBar() {
           var pct = maxCount > 0 ? count / maxCount : 0;
           var w = (specialWidths[key] || 1) * 22;
           var bg = count > 0
-            ? 'rgba(196,163,90,' + (pct * 0.7 + 0.15).toFixed(2) + ')'
-            : 'rgba(255,255,255,0.03)';
-          var color = count > 0 ? '#0a0a12' : 'var(--text-dim)';
-          var fontSize = count > 0 ? '7' : '6';
+            ? 'rgba(160,120,60,' + (pct * 0.5 + 0.08).toFixed(2) + ')'
+            : 'rgba(90,74,53,0.04)';
+          var color = count > 0 ? '#3a2a18' : 'var(--text-dim)';
+          var weight = pct > 0.5 ? 'bold' : 'normal';
           html += '<div style="width:' + w + 'px;height:20px;background:' + bg +
-            ';color:' + color + ';font-family:var(--pixel-font);font-size:' + fontSize +
-            'px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,0.06)" title="' +
+            ';color:' + color + ';font-family:var(--pixel-font);font-size:6px;font-weight:' + weight +
+            ';display:flex;align-items:center;justify-content:center;border:1px solid rgba(90,74,53,0.08);border-radius:2px" title="' +
             key + ': ' + count + '">' + key + '</div>';
         }
         html += '</div>';

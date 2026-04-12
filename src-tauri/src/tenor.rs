@@ -2,9 +2,16 @@ use regex::Regex;
 
 const TENOR_SEARCH_URL: &str = "https://tenor.com/search";
 
+/// A search result with URL and title metadata for relevance filtering.
+pub struct GifResult {
+    pub url: String,
+    pub title: String,
+}
+
 /// Search Tenor for GIFs by scraping search results page. No API key needed.
 /// Returns full-size GIF URLs in Tenor's ranked order.
-pub fn search_gifs(query: &str, limit: usize) -> Vec<String> {
+/// Tenor scraping provides no title metadata, so titles are left empty.
+pub fn search_gifs(query: &str, limit: usize) -> Vec<GifResult> {
     let slug = query
         .split_whitespace()
         .collect::<Vec<_>>()
@@ -38,7 +45,7 @@ pub fn search_gifs(query: &str, limit: usize) -> Vec<String> {
             let slug = cap.get(2)?.as_str();
             let full_url = format!("https://media.tenor.com/{id}AAAAd/{slug}");
             if seen.insert(full_url.clone()) {
-                Some(full_url)
+                Some(GifResult { url: full_url, title: String::new() })
             } else {
                 None
             }
@@ -56,9 +63,9 @@ mod tests {
         let results = search_gifs("gintoki gintama", 5);
         assert!(!results.is_empty());
         assert!(results.len() <= 5);
-        for url in &results {
-            assert!(url.contains("tenor.com/"));
-            assert!(url.ends_with(".gif"));
+        for r in &results {
+            assert!(r.url.contains("tenor.com/"));
+            assert!(r.url.ends_with(".gif"));
         }
     }
 

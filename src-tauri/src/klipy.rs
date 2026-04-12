@@ -14,6 +14,8 @@ struct KlipyData {
 
 #[derive(Deserialize)]
 struct KlipyItem {
+    #[serde(default)]
+    title: String,
     file: KlipyFile,
 }
 
@@ -33,8 +35,14 @@ struct KlipyMedia {
     url: String,
 }
 
-/// Search Klipy for GIFs matching query. Returns list of GIF URLs.
-pub fn search_gifs(query: &str, limit: usize, api_key: &str) -> Vec<String> {
+/// A search result with URL and title metadata for relevance filtering.
+pub struct GifResult {
+    pub url: String,
+    pub title: String,
+}
+
+/// Search Klipy for GIFs matching query. Returns list of results with metadata.
+pub fn search_gifs(query: &str, limit: usize, api_key: &str) -> Vec<GifResult> {
     let url = format!(
         "{KLIPY_SEARCH_URL}/{api_key}/gifs/search?q={}&per_page={limit}&content_filter=high",
         urlencoded(query)
@@ -66,12 +74,12 @@ pub fn search_gifs(query: &str, limit: usize, api_key: &str) -> Vec<String> {
     body.data.data
         .into_iter()
         .filter_map(|item| {
-            // Prefer HD GIF, fall back to MD
-            item.file
+            let url = item.file
                 .hd
                 .and_then(|f| f.gif)
                 .or_else(|| item.file.md.and_then(|f| f.gif))
-                .map(|m| m.url)
+                .map(|m| m.url)?;
+            Some(GifResult { url, title: item.title })
         })
         .take(limit)
         .collect()

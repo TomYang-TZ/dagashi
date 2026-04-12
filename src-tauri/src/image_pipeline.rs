@@ -32,6 +32,40 @@ pub struct PipelineResult {
     pub matched_query: String, // query that found the image
 }
 
+/// A unified search result from any GIF source.
+struct GifResult {
+    url: String,
+    title: String,
+}
+
+/// Check if a GIF result's title is relevant to the character/anime.
+/// Returns true if title is empty (no metadata) or contains a keyword match.
+fn is_relevant(title: &str, character_name: &str, anime_title: &str) -> bool {
+    if title.is_empty() {
+        return true; // no metadata to filter on
+    }
+    let title_lower = title.to_lowercase();
+
+    // Check each word of the character's first name and the anime title
+    let character_first = character_name.split_whitespace().next().unwrap_or("");
+    let anime_words: Vec<&str> = anime_title.split_whitespace()
+        .filter(|w| w.len() > 2) // skip short words like "no", "wa"
+        .collect();
+
+    // Match if title contains character's first name OR any significant anime title word
+    if !character_first.is_empty() && title_lower.contains(&character_first.to_lowercase()) {
+        return true;
+    }
+    for word in &anime_words {
+        if title_lower.contains(&word.to_lowercase()) {
+            return true;
+        }
+    }
+
+    eprintln!("[dagashi] Skipping irrelevant result: {:?} (wanted {} / {})", title, character_name, anime_title);
+    false
+}
+
 /// Full pipeline: search → download → extract frames → compute pixel grid.
 /// Returns pixel data (brightness + color) for each cell. The frontend maps
 /// brightness to characters and applies color.
@@ -52,32 +86,41 @@ pub fn fetch_frames(
     ];
 
     for query in &queries {
-        let gif_urls = match image_source {
+        let results: Vec<GifResult> = match image_source {
             "klipy" => {
                 let key = klipy_api_key.ok_or("klipy_api_key not set")?;
                 eprintln!("[dagashi] Klipy search: {}", query);
                 klipy::search_gifs(query, 10, key)
+                    .into_iter()
+                    .map(|r| GifResult { url: r.url, title: r.title })
+                    .collect()
             }
             _ => {
                 eprintln!("[dagashi] Tenor search: {}", query);
                 tenor::search_gifs(query, 10)
+                    .into_iter()
+                    .map(|r| GifResult { url: r.url, title: r.title })
+                    .collect()
             }
         };
-        eprintln!("[dagashi] Got {} URLs", gif_urls.len());
-        for (i, url) in gif_urls.iter().enumerate() {
-            if used_urls.contains(url) {
+        eprintln!("[dagashi] Got {} URLs", results.len());
+        for (i, result) in results.iter().enumerate() {
+            if used_urls.contains(&result.url) {
                 eprintln!("[dagashi] GIF #{} already in collection, skipping", i);
                 continue;
             }
-            match download(url) {
+            if !is_relevant(&result.title, character_name, anime_title) {
+                continue;
+            }
+            match download(&result.url) {
                 Ok(bytes) => {
                     match decode_gif(&bytes, cols) {
-                        Ok(mut result) if !result.frames.is_empty() => {
-                            eprintln!("[dagashi] Using GIF #{} from query: {}", i, query);
-                            result.source = image_source.to_string();
-                            result.source_url = url.clone();
-                            result.matched_query = query.clone();
-                            return Ok(result);
+                        Ok(mut pr) if !pr.frames.is_empty() => {
+                            eprintln!("[dagashi] Using GIF #{} ({:?}) from query: {}", i, result.title, query);
+                            pr.source = image_source.to_string();
+                            pr.source_url = result.url.clone();
+                            pr.matched_query = query.clone();
+                            return Ok(pr);
                         }
                         Ok(_) => eprintln!("[dagashi] GIF #{} had 0 frames", i),
                         Err(e) => eprintln!("[dagashi] GIF #{} decode failed: {}", i, e),
@@ -212,5 +255,17 @@ mod tests {
         let json = serde_json::to_string(&full_result).unwrap();
         std::fs::write(dir.join("frames.json"), json).unwrap();
         eprintln!("Saved {} frames to {:?}", full_result.frames.len(), dir);
+    }
+
+    #[test]
+    fn relevance_filter() {
+        // Exact character name match
+        assert!(is_relevant("Gintoki Gintama: Intense Gaze", "Gintoki Sakata", "Gintama"));
+        // Anime title match
+        assert!(is_relevant("Lucky Star Kagami Says Oh Yay!", "Tsukasa", "Lucky Star"));
+        // Completely unrelated
+        assert!(!is_relevant("Nishikata's Anime Blush for Takagi-san", "Ichiro", "Inuyashiki"));
+        // Empty title = no filtering
+        assert!(is_relevant("", "Anyone", "Anything"));
     }
 }
