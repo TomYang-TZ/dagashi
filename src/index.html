@@ -466,13 +466,26 @@ async function doPull() {
 
     currentAnimator = new AsciiAnimator(container, pipeline.frames);
     var mode = 'color';
-    document.querySelectorAll('.mode-btn').forEach(function(b) {
+    // Reset display mode buttons (not ramp buttons)
+    document.querySelectorAll('.mode-btn:not(.ramp-btn)').forEach(function(b) {
       b.classList.toggle('active', b.dataset.mode === mode);
     });
+    // Reset ramp buttons — ensure clean is active
+    document.querySelectorAll('.ramp-btn').forEach(function(b) {
+      b.classList.toggle('active', b.dataset.ramp === 'anime');
+      b.style.display = '';
+    });
+    CHAR_RAMP = RAMP_ANIME;
     currentAnimator.setMode(mode);
     currentAnimator.start();
 
-    // Set original image and show/hide button
+    // Ensure ASCII view is shown, not original
+    var asciiEl = document.getElementById('ascii-container');
+    var origEl = document.getElementById('original-container');
+    if (asciiEl) asciiEl.style.display = 'block';
+    if (origEl) origEl.style.display = 'none';
+
+    // Set original image URL for later
     var origBtn = document.querySelector('[data-mode="original"]');
     if (meta.source_url) {
       document.getElementById('original-img').src = meta.source_url;

@@ -35,6 +35,22 @@ struct ExpandedView: View {
                         .font(.system(size: 6, design: .monospaced))
                         .foregroundColor(Color(red: 0.35, green: 0.28, blue: 0.18).opacity(0.5))
                         .lineLimit(1)
+
+                    // Open main app button
+                    Button(action: {
+                        NSWorkspace.shared.open(URL(string: "file:///Applications/Dagashi.app")!)
+                    }) {
+                        Text("OPEN")
+                            .font(.system(size: 5, weight: .bold, design: .monospaced))
+                            .foregroundColor(Color(red: 0.35, green: 0.28, blue: 0.18).opacity(0.6))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 2)
+                                    .stroke(Color(red: 0.35, green: 0.28, blue: 0.18).opacity(0.3), lineWidth: 0.5)
+                            )
+                    }
+                    .buttonStyle(.plain)
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
