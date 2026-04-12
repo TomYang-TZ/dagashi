@@ -10,7 +10,7 @@ class OverlayController {
     var moveMonitor: Any?
 
     let closedSize = NSSize(width: 224, height: 38)
-    let openedSize = NSSize(width: 400, height: 260)
+    let maxPanelSize = NSSize(width: 500, height: 500) // large enough for any content
 
     init(model: AppModel) {
         self.model = model
@@ -19,7 +19,7 @@ class OverlayController {
     func show() {
         guard let screen = NSScreen.main else { return }
 
-        let size = openedSize
+        let size = maxPanelSize
         let origin = NSPoint(
             x: screen.frame.midX - size.width / 2,
             y: screen.frame.maxY - size.height

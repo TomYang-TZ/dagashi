@@ -7,7 +7,7 @@ struct ExpandedView: View {
     var body: some View {
         VStack(spacing: 0) {
             // ASCII art area with dark background
-            WebViewWrapper(model: model)
+            WebViewWrapper(model: model, framesVersion: model.pullCount)
                 .frame(height: model.webViewHeight > 0 ? model.webViewHeight : 200)
                 .background(Color(red: 0.1, green: 0.09, blue: 0.06))
                 .clipShape(RoundedRectangle(cornerRadius: 6))
@@ -54,7 +54,8 @@ struct ExpandedView: View {
 }
 
 struct WebViewWrapper: NSViewRepresentable {
-    let model: AppModel
+    @Bindable var model: AppModel
+    var framesVersion: Int  // value change triggers updateNSView
 
     func makeNSView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
@@ -78,7 +79,12 @@ struct WebViewWrapper: NSViewRepresentable {
     }
 
     func updateNSView(_ webView: WKWebView, context: Context) {
-        // Send frames when WebView is ready and we have data
+        context.coordinator.model = model
+        // Reset cache if pull count changed (new pull arrived)
+        if context.coordinator.lastVersion != framesVersion {
+            context.coordinator.lastVersion = framesVersion
+            context.coordinator.lastSentJson = nil
+        }
         context.coordinator.sendFramesIfReady()
     }
 
@@ -89,6 +95,7 @@ struct WebViewWrapper: NSViewRepresentable {
         var model: AppModel?
         var isReady = false
         var lastSentJson: String?
+        var lastVersion: Int = -1
 
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
             guard let body = message.body as? String, message.name == "dagashi" else { return }

@@ -172,8 +172,8 @@ let currentMode = 0;
 let animationId = null;
 let lastFrameTime = 0;
 let sourceUrl = '';
+let shimmerTick = 0;
 const FRAME_SPEED = 120;
-const ORIGINAL_HOLD = 3000; // ms to show original image
 
 // === RENDERING ===
 function renderFrame(frame, mode) {
@@ -213,14 +213,61 @@ function renderFrame(frame, mode) {
   return html;
 }
 
+function hash(x, y, t) { return ((x * 73 + y * 137 + t * 31) & 0xFF) / 255; }
+
+function renderFrameShimmer(frame, mode, tick) {
+  const ramp = mode.ramp === 'block' ? RAMP_BLOCK : RAMP_CLEAN;
+  const rows = frame.pixels;
+  let minB = 255, maxB = 0;
+  for (const row of rows) {
+    for (const px of row) {
+      if (px.brightness < minB) minB = px.brightness;
+      if (px.brightness > maxB) maxB = px.brightness;
+    }
+  }
+  let html = '';
+  for (var y = 0; y < rows.length; y++) {
+    const row = rows[y];
+    html += '<div>';
+    for (var x = 0; x < row.length; x++) {
+      const px = row[x];
+      var b = px.brightness;
+      if (hash(x, y, tick) < 0.08 && b > 20) {
+        b = Math.max(0, Math.min(255, b + Math.floor((hash(x+1,y,tick) - 0.5) * 50)));
+      }
+      const range = maxB - minB;
+      const norm = range > 0 ? (b - minB) / range : b / 255;
+      const idx = Math.floor(norm * (ramp.length - 1));
+      const ch = ramp[Math.max(0, Math.min(idx, ramp.length - 1))];
+      const escaped = ch === '<' ? '&lt;' : ch === '>' ? '&gt;' : ch === '&' ? '&amp;' : ch;
+      if (ch === ' ') { html += ' '; }
+      else if (mode.color === 'color') {
+        html += '<span style="color:rgb('+px.r+','+px.g+','+px.b+')">'+escaped+'</span>';
+      } else {
+        const alpha = (b / 255 * 0.8 + 0.2).toFixed(2);
+        html += '<span style="color:rgba(196,163,90,'+alpha+')">'+escaped+'</span>';
+      }
+    }
+    html += '</div>';
+  }
+  return html;
+}
+
 function animate(now) {
   if (!frames.length) return;
 
-  if (now - lastFrameTime >= FRAME_SPEED) {
+  var speed = frames.length <= 1 ? 300 : FRAME_SPEED;
+  if (now - lastFrameTime >= speed) {
     lastFrameTime = now;
     const mode = MODES[currentMode];
     const art = document.getElementById('ascii-art');
-    art.innerHTML = renderFrame(frames[currentFrame], mode);
+
+    if (frames.length <= 1) {
+      shimmerTick++;
+      art.innerHTML = renderFrameShimmer(frames[0], mode, shimmerTick);
+    } else {
+      art.innerHTML = renderFrame(frames[currentFrame], mode);
+    }
     reportHeight();
 
     currentFrame++;
@@ -253,6 +300,14 @@ function loadFrames(framesJson, url) {
 
   document.getElementById('loading').style.display = 'none';
   document.getElementById('mode-indicator').textContent = MODES[0].label;
+
+  // Single-frame: add ambient scanline
+  var art = document.getElementById('ascii-art');
+  if (frames.length <= 1) {
+    art.classList.add('single-frame');
+  } else {
+    art.classList.remove('single-frame');
+  }
 
   if (animationId) cancelAnimationFrame(animationId);
   animationId = requestAnimationFrame(animate);

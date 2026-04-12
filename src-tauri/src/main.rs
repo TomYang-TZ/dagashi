@@ -169,43 +169,90 @@ fn do_pull_inner(
     let rarity = gacha::roll_rarity(stats_snapshot.total, &cfg.rarity_thresholds);
     eprintln!("[dagashi] Rolled rarity: {}", rarity.label());
 
-    // 2. Pick anime from the database based on rarity
-    let stats_seed = stats_snapshot.total;
-    let anime = anime_db::pick_anime(&db, &rarity, stats_seed)
-        .ok_or("no anime found for this rarity tier")?;
-    eprintln!("[dagashi] Picked anime: {} (rank {})", anime.title, anime.popularity_rank);
-
-    // 3. Select character via LLM
-    let recent = storage::recent_pull_names(10);
-    let selection = llm::select_character(
-        &stats_snapshot, &rarity, &anime.title, &recent, &cfg.llm
-    )?;
-    eprintln!("[dagashi] LLM picked: {} - {}", selection.character, selection.scene);
-
-    // 4. Roll color mode based on typing engagement
-    let color_mode = if gacha::roll_color(&stats_snapshot) {
-        "color"
-    } else {
-        "mono"
-    };
-
-    // 5. Fetch and process image (skip URLs already in collection)
     let used_urls: std::collections::HashSet<String> = storage::load_collection()
         .pulls
         .iter()
         .filter_map(|p| p.source_url.clone())
         .collect();
-    let pipeline = image_pipeline::fetch_frames(
-        &selection.search_query,
-        &selection.character,
-        &anime.title,
-        anime.mal_id,
-        cfg.ascii.columns,
-        &used_urls,
-        &cfg.image_source,
-        cfg.klipy_api_key.as_deref(),
-    )?;
-    eprintln!("[dagashi] Got {} frames from {}", pipeline.frames.len(), pipeline.source);
+    let recent = storage::recent_pull_names(10);
+
+    // 2. Try up to 3 anime, 3 characters each
+    let stats_seed = stats_snapshot.total;
+    let mut last_error = String::from("no pulls succeeded");
+    let mut selection = None;
+    let mut pipeline = None;
+    let mut chosen_anime = None;
+
+    'outer: for anime_try in 0..3u64 {
+        let anime = match anime_db::pick_anime(&db, &rarity, stats_seed.wrapping_add(anime_try * 7)) {
+            Some(a) => a,
+            None => continue,
+        };
+        eprintln!("[dagashi] Try anime #{}: {} (rank {})", anime_try + 1, anime.title, anime.popularity_rank);
+
+        for char_try in 0..3u64 {
+            // Vary the LLM seed by adding char_try to stats
+            let mut tweaked_stats = stats_snapshot.clone();
+            tweaked_stats.total = tweaked_stats.total.wrapping_add(char_try * 13);
+
+            let sel = match llm::select_character(
+                &tweaked_stats, &rarity, &anime.title, &recent, &cfg.llm
+            ) {
+                Ok(s) => s,
+                Err(e) => {
+                    eprintln!("[dagashi] LLM failed (try {}): {}", char_try + 1, e);
+                    last_error = e;
+                    continue;
+                }
+            };
+            eprintln!("[dagashi] Try character #{}: {} - {}", char_try + 1, sel.character, sel.scene);
+
+            match image_pipeline::fetch_frames(
+                &sel.search_query,
+                &sel.character,
+                &anime.title,
+                anime.mal_id,
+                cfg.ascii.columns,
+                &used_urls,
+                &cfg.image_source,
+                cfg.klipy_api_key.as_deref(),
+            ) {
+                Ok(p) if p.frames.len() > 1 => {
+                    eprintln!("[dagashi] Got {} frames from {}", p.frames.len(), p.source);
+                    selection = Some(sel);
+                    pipeline = Some(p);
+                    chosen_anime = Some(anime.clone());
+                    break 'outer;
+                }
+                Ok(p) => {
+                    eprintln!("[dagashi] Only {} frame(s), trying next character", p.frames.len());
+                    // Keep as fallback if nothing better found
+                    if selection.is_none() {
+                        selection = Some(sel);
+                        pipeline = Some(p);
+                        chosen_anime = Some(anime.clone());
+                    }
+                    last_error = "only static image found".to_string();
+                }
+                Err(e) => {
+                    eprintln!("[dagashi] Image fetch failed: {}", e);
+                    last_error = e;
+                }
+            }
+        }
+    }
+
+    let selection = selection.ok_or(last_error.clone())?;
+    let pipeline = pipeline.ok_or(last_error)?;
+    let anime = chosen_anime.unwrap();
+
+    // Roll color mode
+    let color_mode = if gacha::roll_color(&stats_snapshot) {
+        "color"
+    } else {
+        "mono"
+    };
+    eprintln!("[dagashi] Final: {} from {} ({} frames)", selection.character, anime.title, pipeline.frames.len());
 
     // 6. Save pull — keyed by date + hour + minute
     let now = chrono::Local::now();

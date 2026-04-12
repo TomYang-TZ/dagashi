@@ -14,8 +14,8 @@ struct IslandView: View {
 
     private var contentSize: CGSize {
         if isOpen {
-            let artH = model.webViewHeight > 0 ? model.webViewHeight : 200
-            return CGSize(width: 400, height: artH + 50)
+            let artH = model.webViewHeight > 0 ? min(model.webViewHeight, 400) : 200
+            return CGSize(width: 420, height: artH + 50)
         }
         return CGSize(width: 224, height: 38)
     }
@@ -34,7 +34,7 @@ struct IslandView: View {
 
             // Expanded content — fixed at full width, only opacity animates
             ExpandedView(model: model)
-                .frame(width: 400)
+                .frame(width: 420)
                 .opacity(isOpen ? 1 : 0)
 
             // Cursor halo

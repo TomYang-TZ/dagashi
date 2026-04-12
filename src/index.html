@@ -128,6 +128,48 @@ function renderAsciiFrame(frame, mode) {
   return html;
 }
 
+// Shimmer variant — randomly swap ~8% of characters for a living texture
+function renderAsciiFrameShimmer(frame, mode, tick) {
+  const rows = frame.pixels;
+  var minB = 255, maxB = 0;
+  for (const row of rows) {
+    for (const px of row) {
+      if (px.brightness < minB) minB = px.brightness;
+      if (px.brightness > maxB) maxB = px.brightness;
+    }
+  }
+
+  function hash(x, y, t) { return ((x * 73 + y * 137 + t * 31) & 0xFF) / 255; }
+
+  let html = '';
+  for (var y = 0; y < rows.length; y++) {
+    const row = rows[y];
+    html += '<div class="ascii-row">';
+    for (var x = 0; x < row.length; x++) {
+      const px = row[x];
+      var b = px.brightness;
+
+      if (hash(x, y, tick) < 0.08 && b > 20) {
+        b = Math.max(0, Math.min(255, b + Math.floor((hash(x + 1, y, tick) - 0.5) * 50)));
+      }
+
+      const ch = brightnessToChar(b, minB, maxB);
+      const escaped = ch === '<' ? '&lt;' : ch === '>' ? '&gt;' : ch === '&' ? '&amp;' : ch;
+
+      if (ch === ' ') {
+        html += ' ';
+      } else if (mode === 'color') {
+        html += `<span style="color:rgb(${px.r},${px.g},${px.b})">${escaped}</span>`;
+      } else {
+        var alpha = (b / 255 * 0.8 + 0.2).toFixed(2);
+        html += `<span style="color:rgba(196,163,90,${alpha})">${escaped}</span>`;
+      }
+    }
+    html += '</div>';
+  }
+  return html;
+}
+
 // ============================================
 // ASCII ANIMATION
 // ============================================
@@ -146,6 +188,7 @@ class AsciiAnimator {
 
   start() {
     this.running = true;
+    this.shimmerTick = 0;
     this.render();
     this.rafId = requestAnimationFrame(t => this.loop(t));
   }
@@ -162,17 +205,30 @@ class AsciiAnimator {
 
   loop(now) {
     if (!this.running) return;
-    if (now - this.lastTime > this.speed) {
-      this.currentFrame = (this.currentFrame + 1) % this.frames.length;
-      this.lastTime = now;
-      this.render();
+    if (this.frames.length <= 1) {
+      // Single-frame: re-render with character shimmer every 300ms
+      if (now - this.lastTime > 300) {
+        this.shimmerTick = (this.shimmerTick || 0) + 1;
+        this.lastTime = now;
+        this.render();
+      }
+    } else {
+      if (now - this.lastTime > this.speed) {
+        this.currentFrame = (this.currentFrame + 1) % this.frames.length;
+        this.lastTime = now;
+        this.render();
+      }
     }
     this.rafId = requestAnimationFrame(t => this.loop(t));
   }
 
   render() {
     const frame = this.frames[this.currentFrame];
-    this.container.innerHTML = renderAsciiFrame(frame, this.mode);
+    if (this.frames.length <= 1 && this.shimmerTick > 0) {
+      this.container.innerHTML = renderAsciiFrameShimmer(frame, this.mode, this.shimmerTick);
+    } else {
+      this.container.innerHTML = renderAsciiFrame(frame, this.mode);
+    }
   }
 }
 
