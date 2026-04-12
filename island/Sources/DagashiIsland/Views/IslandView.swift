@@ -32,8 +32,9 @@ struct IslandView: View {
                 .frame(maxWidth: .infinity, alignment: .center)
                 .opacity(isOpen ? 0 : 1)
 
-            // Expanded content — pinned to top
+            // Expanded content — fixed at full width, only opacity animates
             ExpandedView(model: model)
+                .frame(width: 400)
                 .opacity(isOpen ? 1 : 0)
 
             // Cursor halo
