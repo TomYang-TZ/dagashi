@@ -14,6 +14,36 @@ struct PixelPerson: Identifiable {
     }
 }
 
+// Cheering sound effect pixels — tiny dots that pop above heads like retro game effects
+struct CheerPixels: View {
+    let tick: Int
+    let index: Int
+
+    var body: some View {
+        let phase = (tick + index * 5) % 12
+        let show1 = phase < 4
+        let show2 = phase >= 3 && phase < 8
+        let show3 = phase >= 6 && phase < 11
+
+        Canvas { context, size in
+            let cx = size.width / 2
+            if show1 {
+                context.fill(Path(CGRect(x: cx - 2, y: 1, width: 1, height: 1)),
+                    with: .color(Color(red: 1.0, green: 0.8, blue: 0.2)))
+            }
+            if show2 {
+                context.fill(Path(CGRect(x: cx + 1, y: 0, width: 1, height: 1)),
+                    with: .color(Color(red: 1.0, green: 0.5, blue: 0.3)))
+            }
+            if show3 {
+                context.fill(Path(CGRect(x: cx, y: 2, width: 1, height: 1)),
+                    with: .color(Color(red: 0.3, green: 0.8, blue: 1.0)))
+            }
+        }
+        .frame(width: 8, height: 5)
+    }
+}
+
 // Animated pixel sun — beams extend and shrink
 struct PixelSun: View {
     let tick: Int
@@ -174,13 +204,27 @@ struct CollapsedView: View {
                     .offset(x: shopX, y: groundTop - 24)
                 }
 
-                // Sprites — walking on road (centered on ground strip)
+                // Sprites — walking on road
                 ForEach(people) { person in
                     spriteView(person)
                         .offset(
                             x: person.x,
                             y: groundTop - spriteHeight(person) + 3
                         )
+                }
+
+                // Cheering effect pixels above crowd
+                if (model.crowdState == .cheering || model.crowdState == .gathering) && !people.isEmpty {
+                    let cheerCount = min(people.count, 8)
+                    ForEach(0..<cheerCount, id: \.self) { i in
+                        if i < people.count {
+                            CheerPixels(tick: tick, index: i)
+                                .offset(
+                                    x: people[i].x + 1,
+                                    y: groundTop - 14
+                                )
+                        }
+                    }
                 }
 
                 // Animated pixel sun (top right)
@@ -249,26 +293,65 @@ struct CollapsedView: View {
         }
     }
 
+    // Each person gets a target X when gathering (spread across shop front)
+    private let shopAreaLeft: CGFloat = 30
+    private let shopAreaRight: CGFloat = 120
+
+    private func gatherTarget(for index: Int) -> CGFloat {
+        // Spread evenly across the shop front area
+        let spread = shopAreaRight - shopAreaLeft
+        let slot = CGFloat(index % 10) / 10.0
+        return shopAreaLeft + slot * spread
+    }
+
     private func startAnimation() {
         timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
             tick += 1
+            let crowd = model.crowdState
 
             for i in people.indices {
-                people[i].x += people[i].speed * people[i].direction
+                switch crowd {
+                case .gathering, .cheering:
+                    // Move toward spread-out target positions
+                    let target = gatherTarget(for: i)
+                    let dx = target - people[i].x
+                    if abs(dx) > 3 {
+                        people[i].x += (dx > 0 ? 1 : -1) * min(abs(dx) * 0.08, 1.5)
+                    }
+                    // Cheering bounce — hop up and down via direction field hack
+                    if crowd == .cheering {
+                        // Small side-to-side bounce
+                        people[i].x += CGFloat((tick + i * 3) % 6 < 3 ? 1 : -1) * 0.3
+                    }
+                case .dispersing:
+                    // Walk away — alternate directions
+                    let awayDir: CGFloat = i % 2 == 0 ? -1 : 1
+                    people[i].x += awayDir * 0.7
+                case .idle:
+                    people[i].x += people[i].speed * people[i].direction
+                }
             }
 
             people.removeAll { p in p.x < -20 || p.x > 240 }
 
-            // Spawn less frequently — max ~3 on screen
-            if tick % 60 == 0 && people.filter({ $0.kind == .walker }).count < 3 {
-                spawnPerson()
+            switch crowd {
+            case .gathering:
+                if tick % 6 == 0 && people.count < 10 {
+                    if tick % 18 == 0 { spawnBiker() } else { spawnPerson() }
+                }
+            case .cheering:
+                if people.count < 8 { spawnPerson() }
+            case .dispersing:
+                break
+            case .idle:
+                if tick % 60 == 0 && people.filter({ $0.kind == .walker }).count < 3 {
+                    spawnPerson()
+                }
+                if tick % 150 == 0 && people.filter({ $0.kind == .biker }).count < 1 {
+                    spawnBiker()
+                }
+                if tick == 10 { spawnPerson() }
             }
-            if tick % 150 == 0 && people.filter({ $0.kind == .biker }).count < 1 {
-                spawnBiker()
-            }
-
-            // Seed one walker early
-            if tick == 10 { spawnPerson() }
         }
     }
 

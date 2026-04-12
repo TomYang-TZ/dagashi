@@ -21,35 +21,31 @@ struct IslandView: View {
     }
 
     var body: some View {
-        // Single container that animates size, clipped once
-        ZStack(alignment: .top) {
-            // Warm background
-            Color(red: 0.96, green: 0.92, blue: 0.86)
-
-            // Collapsed content — pinned to top
-            CollapsedView(model: model)
-                .frame(width: 224, height: 38)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .opacity(isOpen ? 0 : 1)
-
-            // Expanded content — fixed at full width, only opacity animates
-            ExpandedView(model: model)
-                .frame(width: 420)
-                .opacity(isOpen ? 1 : 0)
-
-            // Cursor halo
-            if model.isHovering && !isOpen {
-                CursorHalo()
+        Color(red: 0.96, green: 0.92, blue: 0.86)
+            .frame(width: contentSize.width, height: contentSize.height)
+            .overlay(alignment: .top) {
+                // Collapsed content
+                CollapsedView(model: model)
                     .frame(width: 224, height: 38)
-                    .frame(maxWidth: .infinity, alignment: .center)
+                    .opacity(isOpen ? 0 : 1)
             }
-        }
-        .frame(width: contentSize.width, height: contentSize.height, alignment: .top)
-        .clipShape(shape)
-        .shadow(color: .black.opacity(isOpen ? 0.15 : 0), radius: 16, y: 8)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .animation(.spring(response: 0.45, dampingFraction: 0.88), value: model.notchStatus)
-        .animation(.easeInOut(duration: 0.2), value: model.isHovering)
+            .overlay(alignment: .top) {
+                // Expanded content
+                ExpandedView(model: model)
+                    .frame(width: 420)
+                    .opacity(isOpen ? 1 : 0)
+            }
+            .overlay(alignment: .top) {
+                if model.isHovering && !isOpen {
+                    CursorHalo()
+                        .frame(width: 224, height: 38)
+                }
+            }
+            .clipShape(shape)
+            .shadow(color: .black.opacity(isOpen ? 0.15 : 0), radius: 16, y: 8)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .animation(.spring(response: 0.45, dampingFraction: 0.88), value: model.notchStatus)
+            .animation(.easeInOut(duration: 0.2), value: model.isHovering)
     }
 }
 

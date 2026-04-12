@@ -64,6 +64,7 @@ class OverlayController {
             DispatchQueue.main.async {
                 if self.model.notchStatus == .opened {
                     self.model.notchStatus = .closed
+                    self.model.onCollapse()
                 }
             }
         }
@@ -98,6 +99,7 @@ class OverlayController {
             if event.keyCode == 53 && self.model.notchStatus == .opened { // 53 = ESC
                 DispatchQueue.main.async {
                     self.model.notchStatus = .closed
+                    self.model.onCollapse()
                 }
                 return nil // consume the event
             }

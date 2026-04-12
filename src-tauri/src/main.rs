@@ -106,13 +106,20 @@ async fn do_pull(state: State<'_, AppState>) -> Result<storage::PullMeta, String
     let cfg = state.config.lock().unwrap().clone();
     let db = state.anime_db.lock().unwrap().clone();
 
-    // Run the heavy work (LLM call + image download) on a background thread
-    // so the UI stays responsive
-    tokio::task::spawn_blocking(move || {
+    // Signal island that pull is starting
+    let signal = config::data_dir().join("pulling");
+    std::fs::write(&signal, "1").ok();
+
+    let result = tokio::task::spawn_blocking(move || {
         do_pull_inner(stats_snapshot, cfg, db)
     })
     .await
-    .map_err(|e| format!("pull task failed: {e}"))?
+    .map_err(|e| format!("pull task failed: {e}"))?;
+
+    // Remove signal
+    std::fs::remove_file(&signal).ok();
+
+    result
 }
 
 fn do_pull_inner(

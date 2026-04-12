@@ -1,5 +1,12 @@
 import SwiftUI
 
+enum CrowdState {
+    case idle       // normal sparse traffic
+    case gathering  // pull in progress — people rush to shop
+    case cheering   // pull complete — crowd bounces
+    case dispersing // user collapsed — crowd walks away
+}
+
 enum NotchStatus {
     case closed
     case opened
@@ -24,6 +31,7 @@ enum DisplayMode: CaseIterable {
 class AppModel {
     var notchStatus: NotchStatus = .closed
     var isHovering = false
+    var crowdState: CrowdState = .idle
     var currentPull: PullMeta?
     var framesJson: String?
     var isLoading = false
@@ -65,17 +73,39 @@ class AppModel {
         }
     }
 
+    func onPullStarted() {
+        isLoading = true
+        crowdState = .gathering
+        // After people arrive, start cheering
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            if self.crowdState == .gathering {
+                self.crowdState = .cheering
+            }
+        }
+    }
+
     func onNewPull() {
         isLoading = false
         loadLatestPull()
 
-        // Pop animation
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
-            notchStatus = .popping
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            withAnimation(.spring(response: 0.42, dampingFraction: 0.8)) {
+        // Keep cheering briefly, then disperse and expand
+        crowdState = .cheering
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            self.crowdState = .dispersing
+            // Expand after crowd starts leaving
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                 self.notchStatus = .opened
+                self.crowdState = .idle
+            }
+        }
+    }
+
+    func onCollapse() {
+        crowdState = .dispersing
+        // Back to idle after crowd disperses
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+            if self.crowdState == .dispersing {
+                self.crowdState = .idle
             }
         }
     }

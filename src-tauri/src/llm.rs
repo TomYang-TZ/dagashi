@@ -6,8 +6,7 @@ use crate::config::LlmConfig;
 use crate::gacha::Rarity;
 use crate::stats::DailyStats;
 
-/// Clean up claude -p session transcript to prevent stale session state.
-/// Claude creates transcript files in ~/.claude/projects/ for each -p call.
+/// Clean up a specific claude -p session transcript.
 fn cleanup_session_transcript(session_id: &str) {
     let home = match dirs::home_dir() {
         Some(h) => h,
@@ -119,7 +118,7 @@ Rules:
     let output = child.wait_with_output().map_err(|e| e.to_string())?;
     let stdout = String::from_utf8_lossy(&output.stdout);
 
-    // Clean up session transcript to prevent stale state
+    // Clean up this session's transcript
     if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&stdout) {
         if let Some(sid) = parsed.get("session_id").and_then(|v| v.as_str()) {
             cleanup_session_transcript(sid);
