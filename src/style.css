@@ -318,45 +318,6 @@ nav {
   color: #c47a8a;
 }
 
-/* IPFS badge */
-.ipfs-badge {
-  font-family: var(--pixel-font);
-  font-size: 6px;
-}
-.ipfs-link {
-  color: var(--rare);
-  text-decoration: none;
-  border-bottom: 1px dotted rgba(90, 122, 170, 0.4);
-  padding-bottom: 1px;
-}
-.ipfs-link:hover {
-  color: #6a8aba;
-  border-bottom-color: #6a8aba;
-}
-
-/* IPFS pin button */
-.pin-btn {
-  font-family: var(--pixel-font);
-  font-size: 6px;
-  padding: 4px 10px;
-  background: transparent;
-  color: var(--rare);
-  border: 1px solid rgba(90, 122, 170, 0.4);
-  cursor: pointer;
-  letter-spacing: 1px;
-  transition: all 0.2s;
-  border-radius: 2px;
-}
-.pin-btn:hover {
-  background: rgba(90, 122, 170, 0.08);
-  border-color: var(--rare);
-}
-.pin-btn:disabled {
-  color: var(--text-dim);
-  border-color: var(--border-light);
-  cursor: default;
-}
-
 /* Manual pull button */
 .pull-now-btn {
   display: block;

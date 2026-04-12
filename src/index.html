@@ -490,9 +490,7 @@ async function doPull() {
       <div class="mt-8" style="font-size:7px;color:var(--text-dim)">
         SOURCE: ${meta.source} | FRAMES: ${meta.frame_count}
       </div>
-      <div id="ipfs-slot" class="mt-8"></div>
     `;
-    renderIpfsSlot(meta.date, meta.ipfs_cid);
 
 
     // Scroll to result card so it's visible
@@ -505,51 +503,6 @@ async function doPull() {
     if (status) status.textContent = 'ERROR: ' + err;
     if (countdown) countdown.textContent = 'PULL FAILED';
   }
-}
-
-// ============================================
-// IPFS PIN BUTTON
-// ============================================
-
-async function renderIpfsSlot(date, existingCid) {
-  var slot = document.getElementById('ipfs-slot');
-  if (!slot) return;
-
-  // Check for existing CID
-  var cid = existingCid || (await invoke('get_pull_cid', { date: date }));
-  if (cid) {
-    slot.innerHTML =
-      '<a href="https://gateway.pinata.cloud/ipfs/' + cid + '" target="_blank" class="ipfs-link">' +
-      'IPFS: ' + cid.substring(0, 16) + '...' +
-      '</a>';
-    return;
-  }
-
-  // Check if Pinata JWT is configured
-  var config = appConfig || (await invoke('get_config'));
-  if (!config.pinata_jwt) {
-    slot.innerHTML = '';
-    return;
-  }
-
-  // Show pin button
-  slot.innerHTML = '<button class="pin-btn" id="pin-ipfs-btn">PIN TO IPFS</button>';
-  document.getElementById('pin-ipfs-btn').addEventListener('click', async function() {
-    var btn = this;
-    btn.disabled = true;
-    btn.textContent = 'PINNING...';
-    try {
-      var cid = await invoke('pin_pull', { date: date });
-      slot.innerHTML =
-        '<a href="https://gateway.pinata.cloud/ipfs/' + cid + '" target="_blank" class="ipfs-link">' +
-        'IPFS: ' + cid.substring(0, 16) + '...' +
-        '</a>';
-    } catch (err) {
-      btn.disabled = false;
-      btn.textContent = 'PIN FAILED — RETRY';
-      console.error('[dagashi] IPFS pin failed:', err);
-    }
-  });
 }
 
 // ============================================
@@ -646,8 +599,7 @@ async function viewPull(date) {
         '<div class="mt-8" style="font-size:7px;color:var(--text-dim)">' +
         'SOURCE: ' + meta.source + ' | FRAMES: ' + meta.frame_count + ' | DATE: ' + meta.date +
         '</div>' +
-        '<div id="ipfs-slot" class="mt-8"></div>';
-      renderIpfsSlot(date, meta.ipfs_cid);
+        '';
 
       setTimeout(function() {
         document.getElementById('result-card').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -792,14 +744,6 @@ async function renderSettings() {
     </div>
 
     <div class="settings-section">
-      <div class="settings-label">PINATA JWT</div>
-      <input class="settings-input" id="set-pinata-jwt"
-        value="${config.pinata_jwt || ''}"
-        placeholder="OPTIONAL — ENABLES IPFS PULL RECEIPTS">
-      <div class="settings-hint">FREE JWT FROM APP.PINATA.CLOUD — PINS VERIFIABLE PULL PROOFS TO IPFS</div>
-    </div>
-
-    <div class="settings-section">
       <div class="settings-label">LLM MODEL</div>
       <div class="settings-row">
         <button class="mode-btn ${config.llm.cli_model === 'haiku' ? 'active' : ''}"
@@ -820,7 +764,6 @@ async function renderSettings() {
     const sourceBtn = page.querySelector('[data-source].active');
     config.image_source = sourceBtn?.dataset.source || 'tenor';
     config.klipy_api_key = document.getElementById('set-klipy-key').value || null;
-    config.pinata_jwt = document.getElementById('set-pinata-jwt').value || null;
     config.llm.cli_model = modelBtn?.dataset.model || 'haiku';
 
     try {
@@ -959,7 +902,6 @@ function mockConfig() {
     llm: { mode: 'cli', cli_model: 'haiku', cli_effort: 'low', api_key: null, api_temperature: 0.99 },
     ascii: { columns: 100 },
     giphy_api_key: null,
-    pinata_jwt: null,
   };
 }
 

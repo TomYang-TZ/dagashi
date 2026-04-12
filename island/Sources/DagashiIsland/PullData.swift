@@ -18,5 +18,4 @@ struct PullMeta: Codable {
     var anime_rank: Int
     var source_url: String?
     var search_query: String?
-    var ipfs_cid: String?
 }

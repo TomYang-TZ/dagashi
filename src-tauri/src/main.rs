@@ -7,7 +7,6 @@ mod image_pipeline;
 mod jikan;
 mod klipy;
 mod tenor;
-mod ipfs;
 mod keylogger;
 mod llm;
 mod stats;
@@ -99,49 +98,6 @@ fn load_pull_frames(date: String) -> Result<image_pipeline::PipelineResult, Stri
 #[tauri::command]
 fn load_pull_meta(date: String) -> Result<storage::PullMeta, String> {
     storage::load_pull_meta(&date)
-}
-
-#[tauri::command]
-fn get_pull_cid(date: String) -> Option<String> {
-    ipfs::load_pull_cid(&date)
-}
-
-#[tauri::command]
-async fn pin_pull(state: State<'_, AppState>, date: String) -> Result<String, String> {
-    let cfg = state.config.lock().unwrap().clone();
-    let jwt = cfg.pinata_jwt
-        .as_deref()
-        .filter(|s| !s.is_empty())
-        .ok_or("no Pinata JWT configured — add one in Settings")?;
-
-    // Check if already pinned
-    if let Some(cid) = ipfs::load_pull_cid(&date) {
-        return Ok(cid);
-    }
-
-    let jwt = jwt.to_string();
-    tokio::task::spawn_blocking(move || {
-        let meta = storage::load_pull_meta(&date)?;
-        let pipeline = storage::load_pull_frames(&date)?;
-        let receipt = ipfs::build_receipt(&meta, &pipeline)?;
-        let cid = ipfs::pin_receipt(&receipt, &jwt)?;
-
-        // Save locally
-        ipfs::save_receipt(&date, &receipt, &cid);
-
-        // Update meta with CID
-        let mut meta = meta;
-        meta.ipfs_cid = Some(cid.clone());
-        let meta_json = serde_json::to_string_pretty(&meta).map_err(|e| e.to_string())?;
-        std::fs::write(
-            storage::pulls_dir().join(&date).join("meta.json"),
-            meta_json,
-        ).map_err(|e| e.to_string())?;
-
-        Ok(cid)
-    })
-    .await
-    .map_err(|e| format!("pin task failed: {e}"))?
 }
 
 #[tauri::command]
@@ -275,7 +231,6 @@ fn do_pull_inner(
         anime_rank: anime.popularity_rank,
         source_url: Some(pipeline.source_url.clone()).filter(|s| !s.is_empty()),
         search_query: Some(pipeline.matched_query.clone()).filter(|s| !s.is_empty()),
-        ipfs_cid: None,
     };
 
     storage::save_pull(&meta, &pipeline)?;
@@ -381,8 +336,6 @@ fn main() {
             get_anime_db_status,
             load_pull_frames,
             load_pull_meta,
-            get_pull_cid,
-            pin_pull,
             do_pull,
         ])
         .run(tauri::generate_context!())

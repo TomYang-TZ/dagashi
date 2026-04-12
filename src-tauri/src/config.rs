@@ -11,7 +11,6 @@ pub struct Config {
     pub ascii: AsciiConfig,
     pub image_source: String, // "tenor" or "klipy"
     pub klipy_api_key: Option<String>,
-    pub pinata_jwt: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -79,7 +78,6 @@ impl Default for Config {
             },
             image_source: "tenor".to_string(),
             klipy_api_key: None,
-            pinata_jwt: None,
         }
     }
 }

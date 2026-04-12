@@ -20,7 +20,6 @@ pub struct PullMeta {
     pub anime_rank: u32,            // popularity rank at time of pull
     pub source_url: Option<String>,    // original image URL
     pub search_query: Option<String>, // query that found the image
-    pub ipfs_cid: Option<String>,     // IPFS content identifier (if pinned)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
