@@ -44,6 +44,110 @@ struct CheerPixels: View {
     }
 }
 
+// Weather particle effects
+struct WeatherParticles: View {
+    let weather: SceneWeather
+    let tick: Int
+    let width: CGFloat
+    let height: CGFloat
+
+    var body: some View {
+        Canvas { context, size in
+            switch weather {
+            case .rainy:
+                // Falling rain drops
+                for i in 0..<20 {
+                    let x = CGFloat((i * 37 + tick * 3) % Int(width))
+                    let y = CGFloat((i * 23 + tick * 5) % Int(height))
+                    context.fill(
+                        Path(CGRect(x: x, y: y, width: 1, height: 2)),
+                        with: .color(Color(red: 0.5, green: 0.6, blue: 0.8).opacity(0.5))
+                    )
+                }
+            case .snowy:
+                // Floating snowflakes
+                for i in 0..<12 {
+                    let x = CGFloat((i * 41 + tick * 1) % Int(width))
+                    let y = CGFloat((i * 19 + tick * 2) % Int(height))
+                    let drift = CGFloat(Darwin.sin(Double(tick + i * 7) * 0.1)) * 2
+                    context.fill(
+                        Path(CGRect(x: x + drift, y: y, width: 1.5, height: 1.5)),
+                        with: .color(.white.opacity(0.7))
+                    )
+                }
+            case .stormy:
+                // Rain + occasional lightning flash
+                for i in 0..<25 {
+                    let x = CGFloat((i * 31 + tick * 4) % Int(width))
+                    let y = CGFloat((i * 17 + tick * 7) % Int(height))
+                    context.fill(
+                        Path(CGRect(x: x, y: y, width: 1, height: 3)),
+                        with: .color(Color(red: 0.6, green: 0.65, blue: 0.8).opacity(0.4))
+                    )
+                }
+                // Lightning flash every ~5 seconds
+                if (tick / 10) % 50 < 2 {
+                    context.fill(
+                        Path(CGRect(x: 0, y: 0, width: size.width, height: size.height)),
+                        with: .color(.white.opacity(0.15))
+                    )
+                }
+            case .cloudy:
+                // Drifting pixel clouds
+                for i in 0..<3 {
+                    let x = CGFloat((i * 80 + tick / 2) % Int(width + 30)) - 15
+                    let y = CGFloat(3 + i * 5)
+                    context.fill(
+                        Path(CGRect(x: x, y: y, width: 12, height: 3)),
+                        with: .color(.white.opacity(0.4))
+                    )
+                    context.fill(
+                        Path(CGRect(x: x + 2, y: y - 1, width: 8, height: 2)),
+                        with: .color(.white.opacity(0.3))
+                    )
+                }
+            case .night:
+                // Twinkling stars
+                for i in 0..<8 {
+                    let x = CGFloat((i * 53) % Int(width))
+                    let y = CGFloat((i * 7) % Int(height - 5)) + 2
+                    let twinkle = (tick + i * 4) % 10 < 6
+                    if twinkle {
+                        context.fill(
+                            Path(CGRect(x: x, y: y, width: 1, height: 1)),
+                            with: .color(Color(red: 1.0, green: 0.95, blue: 0.7).opacity(0.6))
+                        )
+                    }
+                }
+            case .sunny:
+                break // sun handled separately
+            }
+        }
+        .frame(width: width, height: height)
+        .allowsHitTesting(false)
+    }
+}
+
+// Pixel moon for night mode
+struct PixelMoon: View {
+    var body: some View {
+        Canvas { context, size in
+            let cx = size.width / 2
+            let cy = size.height / 2
+            // Crescent moon — circle with dark cutout
+            context.fill(
+                Path(ellipseIn: CGRect(x: cx - 4, y: cy - 4, width: 8, height: 8)),
+                with: .color(Color(red: 0.95, green: 0.92, blue: 0.75))
+            )
+            context.fill(
+                Path(ellipseIn: CGRect(x: cx - 2, y: cy - 5, width: 7, height: 7)),
+                with: .color(Color(red: 0.10, green: 0.10, blue: 0.18))
+            )
+        }
+        .frame(width: 16, height: 16)
+    }
+}
+
 // Animated pixel sun — beams extend and shrink
 struct PixelSun: View {
     let tick: Int
@@ -160,18 +264,38 @@ struct CollapsedView: View {
     private let groundHeight: CGFloat = 8
     private let shopX: CGFloat = 4
 
+    private var skyColor: Color {
+        switch model.sceneWeather {
+        case .sunny:  return Color(red: 0.95, green: 0.89, blue: 0.76)
+        case .cloudy: return Color(red: 0.82, green: 0.82, blue: 0.82)
+        case .rainy:  return Color(red: 0.65, green: 0.68, blue: 0.72)
+        case .snowy:  return Color(red: 0.90, green: 0.92, blue: 0.95)
+        case .stormy: return Color(red: 0.45, green: 0.48, blue: 0.55)
+        case .night:  return Color(red: 0.10, green: 0.10, blue: 0.18)
+        }
+    }
+
+    private var groundColor: Color {
+        switch model.sceneWeather {
+        case .snowy:  return Color(red: 0.92, green: 0.93, blue: 0.95)
+        case .night:  return Color(red: 0.18, green: 0.17, blue: 0.22)
+        case .rainy, .stormy: return Color(red: 0.55, green: 0.55, blue: 0.58)
+        default:      return Color(red: 0.78, green: 0.72, blue: 0.60)
+        }
+    }
+
     var body: some View {
         GeometryReader { geo in
-            let h = geo.size.height      // 38
-            let groundTop = h - groundHeight  // 30
+            let h = geo.size.height
+            let groundTop = h - groundHeight
 
             ZStack(alignment: .topLeading) {
-                // Warm sky
-                Color(red: 0.95, green: 0.89, blue: 0.76)
+                // Sky
+                skyColor
 
                 // Ground / road
                 Rectangle()
-                    .fill(Color(red: 0.78, green: 0.72, blue: 0.60))
+                    .fill(groundColor)
                     .frame(height: groundHeight)
                     .offset(y: groundTop)
 
@@ -179,11 +303,14 @@ struct CollapsedView: View {
                 HStack(spacing: 16) {
                     ForEach(0..<15, id: \.self) { _ in
                         Rectangle()
-                            .fill(Color(red: 0.70, green: 0.64, blue: 0.52).opacity(0.5))
+                            .fill(groundColor.opacity(0.7))
                             .frame(width: 6, height: 1)
                     }
                 }
                 .offset(y: groundTop + 4)
+
+                // Weather particles
+                WeatherParticles(weather: model.sceneWeather, tick: tick, width: geo.size.width, height: groundTop)
 
                 // Dagashi shop icon (left, sitting on ground)
                 if let iconURL = Bundle.module.url(forResource: "dagashi-icon", withExtension: "png", subdirectory: "Resources"),
@@ -227,9 +354,14 @@ struct CollapsedView: View {
                     }
                 }
 
-                // Animated pixel sun (top right)
-                PixelSun(tick: tick)
-                    .offset(x: geo.size.width - 22, y: 3)
+                // Sky element (top right) — sun, moon, or clouds
+                if model.sceneWeather == .night {
+                    PixelMoon()
+                        .offset(x: geo.size.width - 22, y: 3)
+                } else if model.sceneWeather == .sunny {
+                    PixelSun(tick: tick)
+                        .offset(x: geo.size.width - 22, y: 3)
+                }
             }
         }
         .onAppear { startAnimation() }

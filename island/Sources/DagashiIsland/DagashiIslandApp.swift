@@ -23,7 +23,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         overlayController = OverlayController(model: model)
         overlayController?.show()
 
-        // Start watching for pull changes
+        // Start watching for pull changes and weather
         model.fileWatcher.startWatching()
+        model.weatherService.startMonitoring()
     }
 }

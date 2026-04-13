@@ -38,12 +38,16 @@ class AppModel {
     var displayMode: DisplayMode = .colorClean
     var pullCount: Int = 0
     var webViewHeight: CGFloat = 0
+    var sceneWeather: SceneWeather = .sunny
 
     let fileWatcher: FileWatcher
+    let weatherService: WeatherService
 
     init() {
         self.fileWatcher = FileWatcher()
+        self.weatherService = WeatherService()
         self.fileWatcher.model = self
+        self.weatherService.model = self
         loadLatestPull()
     }
 
