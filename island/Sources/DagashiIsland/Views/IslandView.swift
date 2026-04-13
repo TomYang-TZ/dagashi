@@ -20,8 +20,19 @@ struct IslandView: View {
         return CGSize(width: 224, height: 38)
     }
 
+    private var bgColor: Color {
+        switch model.sceneWeather {
+        case .sunny:  return Color(red: 0.96, green: 0.92, blue: 0.86)
+        case .cloudy: return Color(red: 0.85, green: 0.85, blue: 0.85)
+        case .rainy:  return Color(red: 0.70, green: 0.72, blue: 0.76)
+        case .snowy:  return Color(red: 0.92, green: 0.93, blue: 0.96)
+        case .stormy: return Color(red: 0.50, green: 0.52, blue: 0.58)
+        case .night:  return Color(red: 0.12, green: 0.12, blue: 0.20)
+        }
+    }
+
     var body: some View {
-        Color(red: 0.96, green: 0.92, blue: 0.86)
+        bgColor
             .frame(width: contentSize.width, height: contentSize.height)
             .overlay(alignment: .top) {
                 // Collapsed content
