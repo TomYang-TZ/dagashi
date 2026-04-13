@@ -131,17 +131,16 @@ struct WebViewWrapper: NSViewRepresentable {
 
             if let json = model.framesJson, json != lastSentJson {
                 lastSentJson = json
-                // Write JSON to a temp file and load via fetch — avoids escaping issues
-                let tmpURL = FileManager.default.temporaryDirectory.appendingPathComponent("dagashi-frames.json")
-                try? json.data(using: .utf8)?.write(to: tmpURL)
-
-                let js = """
-                fetch('\(tmpURL.absoluteString)')
-                    .then(r => r.json())
-                    .then(data => loadFrames(data))
-                    .catch(e => console.error('Frame load error:', e));
-                """
-                webView.evaluateJavaScript(js)
+                // Base64 encode to avoid JS string escaping issues
+                if let data = json.data(using: .utf8) {
+                    let b64 = data.base64EncodedString()
+                    let js = "loadFrames(JSON.parse(atob('\(b64)')))"
+                    webView.evaluateJavaScript(js) { _, error in
+                        if let error = error {
+                            fputs("[DagashiIsland] JS loadFrames error: \(error)\n", stderr)
+                        }
+                    }
+                }
             }
 
             if model.isLoading {
