@@ -1,6 +1,4 @@
 import Foundation
-import CoreLocation
-import WeatherKit
 
 enum SceneWeather: String {
     case sunny
@@ -11,110 +9,94 @@ enum SceneWeather: String {
     case night
 }
 
-class WeatherService: NSObject, CLLocationManagerDelegate {
+class WeatherService {
     weak var model: AppModel?
-    private let locationManager = CLLocationManager()
-    private var lastUpdate: Date?
     private var timer: Timer?
 
-    override init() {
-        super.init()
-        locationManager.delegate = self
-        locationManager.desiredAccuracy = kCLLocationAccuracyKilometer // city-level only
-    }
-
     func startMonitoring() {
-        locationManager.requestWhenInUseAuthorization()
-        locationManager.startUpdatingLocation()
-
-        // Refresh weather every 15 minutes
+        // Fetch immediately, then every 15 minutes
+        fetchWeather()
         timer = Timer.scheduledTimer(withTimeInterval: 900, repeats: true) { [weak self] _ in
             self?.fetchWeather()
         }
     }
 
     func stopMonitoring() {
-        locationManager.stopUpdatingLocation()
         timer?.invalidate()
     }
 
-    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard let location = locations.last else { return }
+    private func fetchWeather() {
+        // wttr.in — free, no API key, uses IP geolocation
+        guard let url = URL(string: "https://wttr.in/?format=j1") else { return }
 
-        // Only fetch if we haven't recently
-        if let last = lastUpdate, Date().timeIntervalSince(last) < 600 { return }
-        lastUpdate = Date()
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 10
 
-        fetchWeather(at: location)
-    }
+        URLSession.shared.dataTask(with: request) { [weak self] data, _, error in
+            guard let self = self, let data = data, error == nil else {
+                fputs("[DagashiIsland] Weather fetch failed: \(error?.localizedDescription ?? "no data")\n", stderr)
+                return
+            }
 
-    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        eprintln("[DagashiIsland] Location error: \(error.localizedDescription)")
-        // Default to sunny
-        DispatchQueue.main.async {
-            self.model?.sceneWeather = .sunny
-        }
-    }
+            guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let conditions = json["current_condition"] as? [[String: Any]],
+                  let current = conditions.first,
+                  let codeStr = current["weatherCode"] as? String,
+                  let code = Int(codeStr) else {
+                return
+            }
 
-    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        switch manager.authorizationStatus {
-        case .authorizedAlways, .authorized:
-            manager.startUpdatingLocation()
-        case .denied, .restricted:
-            // No permission — stay sunny
+            // Check if it's night (astronomy data)
+            var isNight = false
+            if let astronomy = (json["weather"] as? [[String: Any]])?.first?["astronomy"] as? [[String: Any]],
+               let astro = astronomy.first,
+               let sunset = astro["sunset"] as? String,
+               let sunrise = astro["sunrise"] as? String {
+                let now = Date()
+                let fmt = DateFormatter()
+                fmt.dateFormat = "hh:mm a"
+                if let sunsetTime = fmt.date(from: sunset),
+                   let sunriseTime = fmt.date(from: sunrise) {
+                    let cal = Calendar.current
+                    let nowMinutes = cal.component(.hour, from: now) * 60 + cal.component(.minute, from: now)
+                    let sunsetMinutes = cal.component(.hour, from: sunsetTime) * 60 + cal.component(.minute, from: sunsetTime)
+                    let sunriseMinutes = cal.component(.hour, from: sunriseTime) * 60 + cal.component(.minute, from: sunriseTime)
+                    isNight = nowMinutes > sunsetMinutes || nowMinutes < sunriseMinutes
+                }
+            }
+
+            let scene = self.mapWeatherCode(code, isNight: isNight)
+
             DispatchQueue.main.async {
-                self.model?.sceneWeather = .sunny
+                self.model?.sceneWeather = scene
+                fputs("[DagashiIsland] Weather code \(code) → \(scene.rawValue)\n", stderr)
             }
+        }.resume()
+    }
+
+    // wttr.in weather codes (WWO codes)
+    // https://www.worldweatheronline.com/developer/api/docs/weather-icons.aspx
+    private func mapWeatherCode(_ code: Int, isNight: Bool) -> SceneWeather {
+        if isNight { return .night }
+
+        switch code {
+        case 113: // Clear/Sunny
+            return .sunny
+        case 116, 119, 122: // Partly cloudy, Cloudy, Overcast
+            return .cloudy
+        case 143, 248, 260: // Mist, Fog, Freezing fog
+            return .cloudy
+        case 176, 263, 266, 293, 296, 299, 302, 305, 308, 311, 314, 353, 356, 359:
+            // Various rain types
+            return .rainy
+        case 179, 182, 185, 227, 230, 317, 320, 323, 326, 329, 332, 335, 338, 350, 362, 365, 368, 371, 374, 377:
+            // Various snow/sleet types
+            return .snowy
+        case 200, 386, 389, 392, 395:
+            // Thunder
+            return .stormy
         default:
-            break
+            return .sunny
         }
     }
-
-    private func fetchWeather(at location: CLLocation? = nil) {
-        guard let loc = location ?? locationManager.location else { return }
-
-        Task {
-            do {
-                let weather = try await WeatherService.shared.weather(for: loc)
-                let condition = weather.currentWeather.condition
-                let isDay = weather.currentWeather.isDaylight
-
-                let scene: SceneWeather
-                if !isDay {
-                    scene = .night
-                } else {
-                    switch condition {
-                    case .clear, .hot, .mostlyClear:
-                        scene = .sunny
-                    case .cloudy, .mostlyCloudy, .partlyCloudy, .haze, .foggy, .smoky:
-                        scene = .cloudy
-                    case .rain, .heavyRain, .drizzle, .sunShowers:
-                        scene = .rainy
-                    case .snow, .heavySnow, .flurries, .sleet, .freezingRain, .freezingDrizzle, .blizzard:
-                        scene = .snowy
-                    case .thunderstorms, .strongStorms, .tropicalStorm, .hurricane:
-                        scene = .stormy
-                    default:
-                        scene = .sunny
-                    }
-                }
-
-                await MainActor.run {
-                    self.model?.sceneWeather = scene
-                    eprintln("[DagashiIsland] Weather: \(condition.description) → \(scene.rawValue)")
-                }
-            } catch {
-                eprintln("[DagashiIsland] Weather fetch failed: \(error)")
-            }
-        }
-    }
-}
-
-// WeatherKit's WeatherService conflicts with our class name
-private extension WeatherService {
-    static let shared = WeatherKit.WeatherService.shared
-}
-
-private func eprintln(_ msg: String) {
-    fputs(msg + "\n", stderr)
 }

@@ -76,20 +76,30 @@ struct WeatherParticles: View {
                     )
                 }
             case .stormy:
-                // Rain + occasional lightning flash
-                for i in 0..<25 {
-                    let x = CGFloat((i * 31 + tick * 4) % Int(width))
-                    let y = CGFloat((i * 17 + tick * 7) % Int(height))
-                    context.fill(
-                        Path(CGRect(x: x, y: y, width: 1, height: 3)),
-                        with: .color(Color(red: 0.6, green: 0.65, blue: 0.8).opacity(0.4))
+                // Heavy angled rain (wind-blown)
+                for i in 0..<30 {
+                    let x = CGFloat((i * 31 + tick * 6) % Int(width + 20)) - 10
+                    let y = CGFloat((i * 17 + tick * 8) % Int(height))
+                    var ray = Path()
+                    ray.move(to: CGPoint(x: x, y: y))
+                    ray.addLine(to: CGPoint(x: x + 2, y: y + 3)) // angled
+                    context.stroke(ray, with: .color(Color(red: 0.6, green: 0.65, blue: 0.8).opacity(0.35)), lineWidth: 0.5)
+                }
+                // Wind streaks
+                for i in 0..<5 {
+                    let x = CGFloat((i * 47 + tick * 3) % Int(width + 40)) - 20
+                    let y = CGFloat(5 + i * 5)
+                    context.stroke(
+                        Path { p in p.move(to: CGPoint(x: x, y: y)); p.addLine(to: CGPoint(x: x + 10, y: y)) },
+                        with: .color(.white.opacity(0.08)),
+                        lineWidth: 0.5
                     )
                 }
                 // Lightning flash every ~5 seconds
                 if (tick / 10) % 50 < 2 {
                     context.fill(
                         Path(CGRect(x: 0, y: 0, width: size.width, height: size.height)),
-                        with: .color(.white.opacity(0.15))
+                        with: .color(.white.opacity(0.2))
                     )
                 }
             case .cloudy:
@@ -205,6 +215,9 @@ struct PixelSun: View {
 
 // Simple Japanese tile roof — slanted with overhang
 struct PixelRoof: View {
+    var isStormy: Bool = false
+    var tick: Int = 0
+
     let tileColor = Color(red: 0.35, green: 0.33, blue: 0.38)
     let tileDark  = Color(red: 0.25, green: 0.23, blue: 0.28)
     let tileEdge  = Color(red: 0.45, green: 0.42, blue: 0.46)
@@ -214,12 +227,15 @@ struct PixelRoof: View {
             let w = size.width
             let h = size.height
 
-            // Main roof slope — wider than the store, slight overhang
+            // Wind offset for stormy weather — awning sways
+            let windOffset = isStormy ? CGFloat(Darwin.sin(Double(tick) * 0.3)) * 1.5 : 0
+
+            // Main roof slope
             let roofPath = Path { p in
-                p.move(to: CGPoint(x: -2, y: h))           // bottom-left (overhang)
-                p.addLine(to: CGPoint(x: w * 0.15, y: 1))  // top-left slope
-                p.addLine(to: CGPoint(x: w * 0.85, y: 1))  // top-right
-                p.addLine(to: CGPoint(x: w + 2, y: h))     // bottom-right (overhang)
+                p.move(to: CGPoint(x: -2 + windOffset, y: h))
+                p.addLine(to: CGPoint(x: w * 0.15 + windOffset * 0.5, y: 1))
+                p.addLine(to: CGPoint(x: w * 0.85 + windOffset * 0.5, y: 1))
+                p.addLine(to: CGPoint(x: w + 2 + windOffset, y: h))
                 p.closeSubpath()
             }
             context.fill(roofPath, with: .color(tileColor))
@@ -312,6 +328,16 @@ struct CollapsedView: View {
                 // Weather particles
                 WeatherParticles(weather: model.sceneWeather, tick: tick, width: geo.size.width, height: groundTop)
 
+                // Rainy: puddles on road
+                if model.sceneWeather == .rainy || model.sceneWeather == .stormy {
+                    ForEach(0..<4, id: \.self) { i in
+                        Ellipse()
+                            .fill(Color(red: 0.45, green: 0.50, blue: 0.58).opacity(0.3))
+                            .frame(width: CGFloat(6 + i % 3 * 2), height: 2)
+                            .offset(x: CGFloat(50 + i * 45), y: groundTop + 2)
+                    }
+                }
+
                 // Dagashi shop icon (left, sitting on ground)
                 if let iconURL = Bundle.module.url(forResource: "dagashi-icon", withExtension: "png", subdirectory: "Resources"),
                    let nsImage = NSImage(contentsOf: iconURL) {
@@ -325,8 +351,32 @@ struct CollapsedView: View {
                             .offset(y: 6)
 
                         // Tile roof
-                        PixelRoof()
+                        PixelRoof(isStormy: model.sceneWeather == .stormy, tick: tick)
                             .frame(width: 32, height: 7)
+
+                        // Snow on roof
+                        if model.sceneWeather == .snowy {
+                            Canvas { ctx, size in
+                                ctx.fill(
+                                    Path(CGRect(x: 2, y: 0, width: 28, height: 2)),
+                                    with: .color(.white.opacity(0.85))
+                                )
+                                ctx.fill(
+                                    Path(CGRect(x: 4, y: -1, width: 24, height: 1)),
+                                    with: .color(.white.opacity(0.6))
+                                )
+                            }
+                            .frame(width: 32, height: 3)
+                        }
+
+                        // Night: warm glow from shop windows
+                        if model.sceneWeather == .night {
+                            Rectangle()
+                                .fill(Color(red: 1.0, green: 0.85, blue: 0.4).opacity(0.15))
+                                .frame(width: 26, height: 14)
+                                .blur(radius: 3)
+                                .offset(y: 10)
+                        }
                     }
                     .offset(x: shopX, y: groundTop - 24)
                 }
@@ -370,9 +420,13 @@ struct CollapsedView: View {
 
     private func spriteHeight(_ person: PixelPerson) -> CGFloat {
         switch person.kind {
-        case .walker: return 10 // head(3) + body(4) + legs(3)
-        case .biker:  return 10 // rider(5) + bike(5)
+        case .walker: return hasUmbrellas ? 15 : 10
+        case .biker:  return 10
         }
+    }
+
+    private var hasUmbrellas: Bool {
+        model.sceneWeather == .rainy || model.sceneWeather == .stormy
     }
 
     @ViewBuilder
@@ -380,6 +434,25 @@ struct CollapsedView: View {
         switch person.kind {
         case .walker:
             VStack(spacing: 0) {
+                // Umbrella — wide, tilted, with handle gap
+                if hasUmbrellas {
+                    Canvas { ctx, size in
+                        // Wide dome — tilted to one side
+                        ctx.fill(Path(CGRect(x: 0, y: 2, width: 10, height: 1)),
+                            with: .color(person.color))
+                        ctx.fill(Path(CGRect(x: 1, y: 1, width: 8, height: 1)),
+                            with: .color(person.color))
+                        ctx.fill(Path(CGRect(x: 3, y: 0, width: 4, height: 1)),
+                            with: .color(person.color))
+                        // Handle stick
+                        ctx.fill(Path(CGRect(x: 5, y: 3, width: 1, height: 2)),
+                            with: .color(Color(red: 0.4, green: 0.35, blue: 0.3)))
+                    }
+                    .frame(width: 10, height: 5)
+                    .offset(x: person.direction > 0 ? -2 : 1) // tilt based on direction
+                }
+
+                // Person body
                 Circle()
                     .fill(Color(red: 0.9, green: 0.8, blue: 0.7))
                     .frame(width: 3, height: 3)

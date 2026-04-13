@@ -59,7 +59,7 @@ A standalone Swift app that sits at the macOS notch.
   <img src="assets/island-demo.gif" alt="Dynamic Island — crowd gathers when a new pull arrives" width="600">
 </p>
 
-- **Collapsed:** pixel art dagashi shop with walkers and bikers
+- **Collapsed:** pixel art dagashi shop with walkers and bikers — live weather
 - **Expanded:** click to reveal latest pull as animated ASCII art
 - **Auto-cycles:** color clean → color block → mono clean → mono block
 
