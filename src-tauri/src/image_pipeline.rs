@@ -38,31 +38,39 @@ struct GifResult {
     title: String,
 }
 
+/// Strip season numbers, roman numerals, and other suffixes from anime titles.
+/// "Overlord III" → "Overlord", "Shingeki no Kyojin Season 2" → "Shingeki no Kyojin"
+fn clean_anime_title(title: &str) -> String {
+    let roman = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
+    let noise = ["Season", "Part", "Cour", "OVA", "ONA", "Special", "Movie",
+                  "2nd", "3rd", "4th", "5th", "Final"];
+
+    title.split_whitespace()
+        .filter(|w| {
+            !roman.contains(w)
+                && !noise.iter().any(|n| w.eq_ignore_ascii_case(n))
+                && !w.chars().all(|c| c.is_ascii_digit())
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 /// Check if a GIF result's title is relevant to the character/anime.
-/// Returns true if title is empty (no metadata) or contains a keyword match.
-fn is_relevant(title: &str, character_name: &str, anime_title: &str) -> bool {
+/// Requires character's first name to appear in the title.
+/// Falls back to anime title match only if title has no character info.
+fn is_relevant(title: &str, character_name: &str, _anime_title: &str) -> bool {
     if title.is_empty() {
         return true; // no metadata to filter on
     }
     let title_lower = title.to_lowercase();
 
-    // Check each word of the character's first name and the anime title
+    // Character's first name must appear in the GIF title
     let character_first = character_name.split_whitespace().next().unwrap_or("");
-    let anime_words: Vec<&str> = anime_title.split_whitespace()
-        .filter(|w| w.len() > 2) // skip short words like "no", "wa"
-        .collect();
-
-    // Match if title contains character's first name OR any significant anime title word
     if !character_first.is_empty() && title_lower.contains(&character_first.to_lowercase()) {
         return true;
     }
-    for word in &anime_words {
-        if title_lower.contains(&word.to_lowercase()) {
-            return true;
-        }
-    }
 
-    eprintln!("[dagashi] Skipping irrelevant result: {:?} (wanted {} / {})", title, character_name, anime_title);
+    eprintln!("[dagashi] Skipping irrelevant result: {:?} (wanted {} / {})", title, character_name, _anime_title);
     false
 }
 
@@ -79,9 +87,10 @@ pub fn fetch_frames(
     image_source: &str,
     klipy_api_key: Option<&str>,
 ) -> Result<PipelineResult, String> {
+    let clean_title = clean_anime_title(anime_title);
     let queries = [
+        format!("{} {}", character_name, clean_title),
         search_query.to_string(),
-        format!("{} {}", character_name, anime_title),
         format!("{} anime", character_name),
     ];
 
@@ -259,13 +268,26 @@ mod tests {
 
     #[test]
     fn relevance_filter() {
-        // Exact character name match
+        // Character first name in title
         assert!(is_relevant("Gintoki Gintama: Intense Gaze", "Gintoki Sakata", "Gintama"));
-        // Anime title match
-        assert!(is_relevant("Lucky Star Kagami Says Oh Yay!", "Tsukasa", "Lucky Star"));
+        // Character first name in title (different position)
+        assert!(is_relevant("Lucky Star Tsukasa cooking", "Tsukasa Hiiragi", "Lucky Star"));
+        // Wrong character from same anime — must reject
+        assert!(!is_relevant("Pandora's Actor Overlord pose", "Albedo", "Overlord III"));
+        // Anime title match but no character name — must reject
+        assert!(!is_relevant("Overlord epic scene", "Albedo", "Overlord III"));
         // Completely unrelated
-        assert!(!is_relevant("Nishikata's Anime Blush for Takagi-san", "Ichiro", "Inuyashiki"));
+        assert!(!is_relevant("Nishikata's Anime Blush", "Ichiro", "Inuyashiki"));
         // Empty title = no filtering
         assert!(is_relevant("", "Anyone", "Anything"));
+    }
+
+    #[test]
+    fn clean_title_strips_season() {
+        assert_eq!(clean_anime_title("Overlord III"), "Overlord");
+        assert_eq!(clean_anime_title("Shingeki no Kyojin Season 2"), "Shingeki no Kyojin");
+        assert_eq!(clean_anime_title("Kaguya-sama wa Kokurasetai"), "Kaguya-sama wa Kokurasetai");
+        assert_eq!(clean_anime_title("Fairy Tail 2014"), "Fairy Tail");
+        assert_eq!(clean_anime_title("Bleach: Sennen Kessen-hen Part 2"), "Bleach: Sennen Kessen-hen");
     }
 }
