@@ -60,7 +60,6 @@ A standalone Swift app that sits at the macOS notch.
 </p>
 
 - **Collapsed:** pixel art dagashi shop with walkers and bikers
-- **Pull happens:** crowd gathers from both sides, cheering with pixel effects
 - **Expanded:** click to reveal latest pull as animated ASCII art
 - **Auto-cycles:** color clean → color block → mono clean → mono block
 
@@ -85,7 +84,7 @@ Three processes, shared filesystem (`~/.dagashi/`):
 
 ## Privacy
 
-Only aggregate stats — character frequencies, hourly volume, key regions. No words, no sentences, no order. **Deaf mode** instantly pauses recording.
+Only aggregate stats — character frequencies, hourly volume, key regions. No words, no sentences, no order. All processing happens locally on your machine — nothing is sent to any server. **Deaf mode** instantly pauses recording.
 
 ## Credits
 
