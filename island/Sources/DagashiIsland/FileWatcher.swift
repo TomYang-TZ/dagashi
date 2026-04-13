@@ -27,16 +27,25 @@ class FileWatcher {
         if pullingFd >= 0 { close(pullingFd); pullingFd = -1 }
     }
 
-    // Poll for the "pulling" signal file (simpler than DispatchSource for a temp file)
+    private var wasPulling = false
+
+    // Poll for the "pulling" signal file
     private func startPullingPoller() {
         pullingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             guard let self = self, let model = self.model else { return }
             let pullingFile = self.dagashiDir.appendingPathComponent("pulling")
             let isPulling = FileManager.default.fileExists(atPath: pullingFile.path)
 
-            if isPulling && model.crowdState == .idle {
+            if isPulling && !self.wasPulling {
+                // Pull started
                 model.onPullStarted()
+            } else if !isPulling && self.wasPulling && model.crowdState != .idle {
+                // Pull ended (success or failure) — disperse if crowd is still gathered
+                if model.crowdState == .gathering || model.crowdState == .cheering {
+                    model.onCollapse()
+                }
             }
+            self.wasPulling = isPulling
         }
     }
 

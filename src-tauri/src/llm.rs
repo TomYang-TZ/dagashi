@@ -35,6 +35,34 @@ pub struct CharacterSelection {
 
 const JSON_SCHEMA: &str = r#"{"type":"object","properties":{"character":{"type":"string"},"scene":{"type":"string"},"search_query":{"type":"string"},"rarity":{"type":"string"},"flavor_text":{"type":"string"}},"required":["character","scene","search_query","rarity","flavor_text"]}"#;
 
+/// Collect CLAUDE_*, AWS_*, ANTHROPIC_* env vars.
+/// If not in current env (e.g. app launched from Finder), load from shell profile.
+fn resolve_claude_env(home: &std::path::Path) -> Vec<(String, String)> {
+    let mut envs: Vec<(String, String)> = std::env::vars()
+        .filter(|(k, _)| k.starts_with("CLAUDE_") || k.starts_with("AWS_") || k.starts_with("ANTHROPIC_"))
+        .collect();
+
+    // If we got nothing, try loading from shell
+    if envs.is_empty() {
+        if let Ok(output) = Command::new("zsh")
+            .args(["-lc", "env"])
+            .env("HOME", home)
+            .output()
+        {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            for line in stdout.lines() {
+                if let Some((k, v)) = line.split_once('=') {
+                    if k.starts_with("CLAUDE_") || k.starts_with("AWS_") || k.starts_with("ANTHROPIC_") {
+                        envs.push((k.to_string(), v.to_string()));
+                    }
+                }
+            }
+        }
+    }
+
+    envs
+}
+
 fn find_claude_binary() -> String {
     let candidates = [
         dirs::home_dir().map(|h| h.join(".local/bin/claude")),
@@ -91,9 +119,9 @@ Rules:
     let home = dirs::home_dir().expect("no home dir");
     let mut child = Command::new(&claude_bin)
         .current_dir("/tmp")
-        .env_remove("ANTHROPIC_API_KEY")
         .env("HOME", &home)
         .env("PATH", format!("{}/.local/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin", home.display()))
+        .envs(resolve_claude_env(&home))
         .args([
             "-p",
             "--model", &config.cli_model,

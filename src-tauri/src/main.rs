@@ -139,22 +139,29 @@ fn do_pull_inner(
         .collect();
     let recent = storage::recent_pull_names(10);
 
-    // 2. Try up to 3 anime, 3 characters each
+    // 2. Try up to 2 anime, 2 characters each (with cooldown between LLM calls)
     let stats_seed = stats_snapshot.total;
     let mut last_error = String::from("no pulls succeeded");
     let mut selection = None;
     let mut pipeline = None;
     let mut chosen_anime = None;
+    let mut llm_call_count = 0u32;
 
-    'outer: for anime_try in 0..3u64 {
+    'outer: for anime_try in 0..2u64 {
         let anime = match anime_db::pick_anime(&db, &rarity, stats_seed.wrapping_add(anime_try * 7)) {
             Some(a) => a,
             None => continue,
         };
         eprintln!("[dagashi] Try anime #{}: {} (rank {})", anime_try + 1, anime.title, anime.popularity_rank);
 
-        for char_try in 0..3u64 {
-            // Vary the LLM seed by adding char_try to stats
+        for char_try in 0..2u64 {
+            // Cooldown between LLM calls to avoid quota exhaustion
+            if llm_call_count > 0 {
+                eprintln!("[dagashi] Cooling down 5s before retry...");
+                std::thread::sleep(std::time::Duration::from_secs(5));
+            }
+            llm_call_count += 1;
+
             let mut tweaked_stats = stats_snapshot.clone();
             tweaked_stats.total = tweaked_stats.total.wrapping_add(char_try * 13);
 
