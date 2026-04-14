@@ -297,25 +297,9 @@ async function initPullPage() {
     '<div class="pull-container">' +
       '<div class="pull-stats-summary" id="stats-summary">LOADING STATS...</div>' +
       '<div id="key-heatmap" style="text-align:center;margin:8px 0;min-height:20px;font-family:var(--mono-font)"></div>' +
-      '<div class="mode-toggle mt-8">' +
-        '<button class="mode-btn active" data-mode="color">COLOR</button>' +
-        '<button class="mode-btn" data-mode="mono">MONO</button>' +
-        '<button class="mode-btn" data-mode="original">ORIGINAL</button>' +
-        '<span style="margin-left:12px"></span>' +
-        '<button class="mode-btn ramp-btn active" data-ramp="anime">CLEAN</button>' +
-        '<button class="mode-btn ramp-btn" data-ramp="block">BLOCK</button>' +
-      '</div>' +
-      '<div id="pull-result" class="hidden">' +
-        '<div class="ascii-display" style="position:relative">' +
-          '<button id="pull-back-btn" style="display:none;position:absolute;top:4px;right:4px;z-index:10;font-family:var(--pixel-font);font-size:8px;background:none;border:none;color:var(--text-dim);cursor:pointer;padding:4px 6px;opacity:0.5">✕</button>' +
-          '<div class="ascii-art" id="ascii-container"></div>' +
-          '<div id="original-container" style="display:none;text-align:center;padding:8px"><img id="original-img" style="max-width:100%;border-radius:4px"></div>' +
-        '</div>' +
-        '<div class="result-card" id="result-card"></div>' +
-      '</div>' +
-      '<div id="pull-status" class="text-center mt-16" style="font-size:8px;color:var(--text-dim)"></div>' +
       '<div id="pull-countdown" style="font-size:14px;color:var(--text-bright);text-align:center;margin:16px 0 4px;font-family:var(--pixel-font)"></div>' +
-      '<div id="pull-countdown-label" style="font-size:7px;color:var(--text-dim);text-align:center"></div>' +
+      '<div id="pull-countdown-label" style="font-size:7px;color:var(--text-dim);text-align:center;margin-bottom:8px"></div>' +
+      '<div id="pull-status" class="text-center" style="font-size:8px;color:var(--text-dim)"></div>' +
     '</div>';
 
   // Fetch data and update UI
@@ -331,54 +315,6 @@ async function initPullPage() {
     console.error('[dagashi] Failed to load stats:', err);
     document.getElementById('stats-summary').textContent = 'STATS ERROR: ' + err;
   }
-
-  page.querySelectorAll('.mode-btn:not(.ramp-btn)').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      page.querySelectorAll('.mode-btn:not(.ramp-btn)').forEach(function(b) { b.classList.remove('active'); });
-      btn.classList.add('active');
-      var asciiEl = document.getElementById('ascii-container');
-      var origEl = document.getElementById('original-container');
-      var rampBtns = page.querySelectorAll('.ramp-btn');
-      if (btn.dataset.mode === 'original') {
-        if (asciiEl) asciiEl.style.display = 'none';
-        if (origEl) origEl.style.display = 'block';
-        rampBtns.forEach(function(b) { b.style.display = 'none'; });
-      } else {
-        if (asciiEl) asciiEl.style.display = 'block';
-        if (origEl) origEl.style.display = 'none';
-        rampBtns.forEach(function(b) { b.style.display = ''; });
-        if (currentAnimator) currentAnimator.setMode(btn.dataset.mode);
-      }
-    });
-  });
-  page.querySelectorAll('.ramp-btn').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      page.querySelectorAll('.ramp-btn').forEach(function(b) { b.classList.remove('active'); });
-      btn.classList.add('active');
-      CHAR_RAMP = btn.dataset.ramp === 'block' ? RAMP_BLOCK : RAMP_ANIME;
-      if (currentAnimator) currentAnimator.render();
-    });
-  });
-
-  // Show latest pull if one exists
-  try {
-    var collection = await invoke('get_collection');
-    window.__cachedCollection = collection;
-    if (collection.pulls && collection.pulls.length > 0) {
-      var latest = collection.pulls[collection.pulls.length - 1];
-      viewPull(latest.date);
-    }
-  } catch (e) {
-    // No pulls yet
-  }
-
-  // Close button: dismiss viewed pull, restore countdown
-  document.getElementById('pull-back-btn').addEventListener('click', function() {
-    var resultDiv = document.getElementById('pull-result');
-    if (resultDiv) resultDiv.classList.add('hidden');
-    this.style.display = 'none';
-    if (currentAnimator) { currentAnimator.stop(); currentAnimator = null; }
-  });
 
   // Dev: double-click countdown to trigger pull manually
   document.getElementById('pull-countdown').addEventListener('dblclick', function() {
@@ -462,59 +398,8 @@ async function doPull() {
     // Load the frames
     const pipeline = await invoke('load_pull_frames', { date: meta.date });
 
-    // Show result
-    const resultDiv = document.getElementById('pull-result');
-    resultDiv.classList.remove('hidden');
-
-    const container = document.getElementById('ascii-container');
-    if (currentAnimator) currentAnimator.stop();
-
-    currentAnimator = new AsciiAnimator(container, pipeline.frames);
-    var mode = 'color';
-    // Reset display mode buttons (not ramp buttons)
-    document.querySelectorAll('.mode-btn:not(.ramp-btn)').forEach(function(b) {
-      b.classList.toggle('active', b.dataset.mode === mode);
-    });
-    // Reset ramp buttons — ensure clean is active
-    document.querySelectorAll('.ramp-btn').forEach(function(b) {
-      b.classList.toggle('active', b.dataset.ramp === 'anime');
-      b.style.display = '';
-    });
-    CHAR_RAMP = RAMP_ANIME;
-    currentAnimator.setMode(mode);
-    currentAnimator.start();
-
-    // Ensure ASCII view is shown, not original
-    var asciiEl = document.getElementById('ascii-container');
-    var origEl = document.getElementById('original-container');
-    if (asciiEl) asciiEl.style.display = 'block';
-    if (origEl) origEl.style.display = 'none';
-
-    // Set original image URL for later
-    var origBtn = document.querySelector('[data-mode="original"]');
-    if (meta.source_url) {
-      document.getElementById('original-img').src = meta.source_url;
-      if (origBtn) origBtn.style.display = '';
-    } else {
-      if (origBtn) origBtn.style.display = 'none';
-    }
-
-    // Result card
-    document.getElementById('result-card').innerHTML = `
-      <span class="rarity-badge rarity-${meta.rarity}">${meta.rarity.toUpperCase()}</span>
-      <div class="result-character">${meta.character}</div>
-      <div style="font-size:8px;color:var(--text-dim);margin-bottom:4px">${meta.anime_title || ''} ${meta.anime_rank ? '#' + meta.anime_rank : ''}</div>
-      <div class="result-flavor">"${meta.flavor_text}"</div>
-      <div class="mt-8" style="font-size:7px;color:var(--text-dim)">
-        SOURCE: ${meta.source} | FRAMES: ${meta.frame_count}
-      </div>
-    `;
-
-
-    // Scroll to result card so it's visible
-    setTimeout(function() {
-      document.getElementById('result-card').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }, 500);
+    // Show result in popover
+    openPullPopover(pipeline.frames, meta);
 
   } catch (err) {
     clearInterval(loadingInterval);
@@ -560,69 +445,130 @@ async function renderGallery() {
   });
 }
 
+// ============================================
+// PULL POPOVER
+// ============================================
+
+function closePullPopover() {
+  var overlay = document.getElementById('pull-popover');
+  if (overlay) {
+    if (currentAnimator) { currentAnimator.stop(); currentAnimator = null; }
+    overlay.remove();
+  }
+}
+
+function openPullPopover(frames, meta) {
+  // Close any existing popover
+  closePullPopover();
+
+  var overlay = document.createElement('div');
+  overlay.id = 'pull-popover';
+  overlay.className = 'popover-overlay';
+
+  var modal = document.createElement('div');
+  modal.className = 'popover-modal';
+
+  var originalBtnHtml = meta.source_url
+    ? '<button class="mode-btn" data-mode="original">ORIGINAL</button>'
+    : '';
+
+  modal.innerHTML =
+    '<button class="popover-close" id="popover-close-btn">✕</button>' +
+    '<div class="mode-toggle">' +
+      '<button class="mode-btn active" data-mode="color">COLOR</button>' +
+      '<button class="mode-btn" data-mode="mono">MONO</button>' +
+      originalBtnHtml +
+      '<span style="margin-left:12px"></span>' +
+      '<button class="mode-btn ramp-btn active" data-ramp="anime">CLEAN</button>' +
+      '<button class="mode-btn ramp-btn" data-ramp="block">BLOCK</button>' +
+    '</div>' +
+    '<div class="ascii-display" style="position:relative">' +
+      '<div class="ascii-art" id="popover-ascii"></div>' +
+      '<div id="popover-original" style="display:none;text-align:center;padding:8px">' +
+        '<img id="popover-original-img" style="max-width:100%;border-radius:4px">' +
+      '</div>' +
+    '</div>' +
+    '<div class="result-card">' +
+      '<span class="rarity-badge rarity-' + meta.rarity + '">' + meta.rarity.toUpperCase() + '</span>' +
+      '<div class="result-character">' + meta.character + '</div>' +
+      '<div style="font-size:8px;color:var(--text-dim);margin-bottom:4px">' +
+        (meta.anime_title || '') + ' ' + (meta.anime_rank ? '#' + meta.anime_rank : '') +
+      '</div>' +
+      '<div class="result-flavor">"' + meta.flavor_text + '"</div>' +
+      '<div class="mt-8" style="font-size:7px;color:var(--text-dim)">' +
+        'SOURCE: ' + meta.source + ' | FRAMES: ' + meta.frame_count + ' | DATE: ' + meta.date +
+      '</div>' +
+    '</div>';
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  // Set original image
+  if (meta.source_url) {
+    document.getElementById('popover-original-img').src = meta.source_url;
+  }
+
+  // Start animator
+  var container = document.getElementById('popover-ascii');
+  if (currentAnimator) currentAnimator.stop();
+  CHAR_RAMP = RAMP_ANIME;
+  currentAnimator = new AsciiAnimator(container, frames);
+  currentAnimator.setMode('color');
+  currentAnimator.start();
+
+  // Close button
+  document.getElementById('popover-close-btn').addEventListener('click', closePullPopover);
+
+  // Click overlay background to close
+  overlay.addEventListener('click', function(e) {
+    if (e.target === overlay) closePullPopover();
+  });
+
+  // Escape key to close
+  function onEsc(e) {
+    if (e.key === 'Escape') { closePullPopover(); document.removeEventListener('keydown', onEsc); }
+  }
+  document.addEventListener('keydown', onEsc);
+
+  // Mode buttons
+  modal.querySelectorAll('.mode-btn:not(.ramp-btn)').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      modal.querySelectorAll('.mode-btn:not(.ramp-btn)').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      var asciiEl = document.getElementById('popover-ascii');
+      var origEl = document.getElementById('popover-original');
+      var rampBtns = modal.querySelectorAll('.ramp-btn');
+      if (btn.dataset.mode === 'original') {
+        if (asciiEl) asciiEl.style.display = 'none';
+        if (origEl) origEl.style.display = 'block';
+        rampBtns.forEach(function(b) { b.style.display = 'none'; });
+      } else {
+        if (asciiEl) asciiEl.style.display = 'block';
+        if (origEl) origEl.style.display = 'none';
+        rampBtns.forEach(function(b) { b.style.display = ''; });
+        if (currentAnimator) currentAnimator.setMode(btn.dataset.mode);
+      }
+    });
+  });
+
+  // Ramp buttons
+  modal.querySelectorAll('.ramp-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      modal.querySelectorAll('.ramp-btn').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      CHAR_RAMP = btn.dataset.ramp === 'block' ? RAMP_BLOCK : RAMP_ANIME;
+      if (currentAnimator) currentAnimator.render();
+    });
+  });
+}
+
 async function viewPull(date) {
   try {
     console.log('[dagashi] viewPull:', date);
     var pipeline = await invoke('load_pull_frames', { date: date });
     var meta = await invoke('load_pull_meta', { date: date });
     console.log('[dagashi] viewPull loaded:', meta.character);
-
-    // Switch to pull page and show the art
-    document.querySelectorAll('.nav-tab').forEach(function(t) { t.classList.remove('active'); });
-    document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
-    document.querySelector('[data-page="pull"]').classList.add('active');
-    document.getElementById('page-pull').classList.add('active');
-
-    var resultDiv = document.getElementById('pull-result');
-    if (resultDiv) {
-      resultDiv.classList.remove('hidden');
-      document.getElementById('pull-back-btn').style.display = '';
-      var container = document.getElementById('ascii-container');
-      if (currentAnimator) currentAnimator.stop();
-      currentAnimator = new AsciiAnimator(container, pipeline.frames);
-
-      var mode = 'color';
-      document.querySelectorAll('.mode-btn:not(.ramp-btn)').forEach(function(b) {
-        b.classList.toggle('active', b.dataset.mode === mode);
-      });
-      document.querySelectorAll('.ramp-btn').forEach(function(b) {
-        b.classList.toggle('active', b.dataset.ramp === 'anime');
-        b.style.display = '';
-      });
-      CHAR_RAMP = RAMP_ANIME;
-      currentAnimator.setMode(mode);
-      currentAnimator.start();
-
-      // Set original image and show/hide button
-      var origImg = document.getElementById('original-img');
-      var origBtn = document.querySelector('[data-mode="original"]');
-      if (meta.source_url) {
-        if (origImg) origImg.src = meta.source_url;
-        if (origBtn) origBtn.style.display = '';
-      } else {
-        if (origBtn) origBtn.style.display = 'none';
-      }
-      // Reset to ASCII view
-      var asciiEl = document.getElementById('ascii-container');
-      var origEl = document.getElementById('original-container');
-      if (asciiEl) asciiEl.style.display = 'block';
-      if (origEl) origEl.style.display = 'none';
-
-      // Show result card
-      document.getElementById('result-card').innerHTML =
-        '<span class="rarity-badge rarity-' + meta.rarity + '">' + meta.rarity.toUpperCase() + '</span>' +
-        '<div class="result-character">' + meta.character + '</div>' +
-        '<div style="font-size:8px;color:var(--text-dim);margin-bottom:4px">' + (meta.anime_title || '') + ' ' + (meta.anime_rank ? '#' + meta.anime_rank : '') + '</div>' +
-        '<div class="result-flavor">"' + meta.flavor_text + '"</div>' +
-        '<div class="mt-8" style="font-size:7px;color:var(--text-dim)">' +
-        'SOURCE: ' + meta.source + ' | FRAMES: ' + meta.frame_count + ' | DATE: ' + meta.date +
-        '</div>' +
-        '';
-
-      setTimeout(function() {
-        document.getElementById('result-card').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }, 500);
-    }
+    openPullPopover(pipeline.frames, meta);
   } catch (err) {
     console.error('[dagashi] Failed to load pull:', date, err);
   }
