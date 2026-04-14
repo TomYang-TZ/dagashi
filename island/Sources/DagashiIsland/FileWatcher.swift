@@ -39,8 +39,9 @@ class FileWatcher {
             if isPulling && !self.wasPulling {
                 // Pull started
                 model.onPullStarted()
-            } else if !isPulling && self.wasPulling && model.crowdState != .idle {
-                // Pull ended (success or failure) — disperse if crowd is still gathered
+            } else if !isPulling && self.wasPulling {
+                // Pull ended (success or failure) — always clear loading state
+                model.isLoading = false
                 if model.crowdState == .gathering || model.crowdState == .cheering {
                     model.onCollapse()
                 }

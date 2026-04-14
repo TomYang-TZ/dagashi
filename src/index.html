@@ -338,11 +338,16 @@ async function initPullPage() {
       label.textContent = 'AUTO-PULL TRIGGERED';
       clearInterval(countdownInterval);
       pullKey = newKey;
-      doPull();
+      doPull().finally(restartCountdown);
     } else if (cd !== null) {
       el.textContent = cd;
       label.textContent = 'NEXT PULL IN';
     }
+  }
+  function restartCountdown() {
+    clearInterval(countdownInterval);
+    countdownInterval = setInterval(updateCountdown, 1000);
+    updateCountdown();
   }
   updateCountdown();
   var countdownInterval = setInterval(updateCountdown, 1000);

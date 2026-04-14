@@ -27,7 +27,7 @@ pub struct PipelineResult {
     pub frames: Vec<AsciiFrame>,
     pub cols: u32,
     pub rows: u32,
-    pub source: String,        // "tenor" or "jikan"
+    pub source: String,        // "tenor", "klipy", or "jikan"
     pub source_url: String,    // original image URL
     pub matched_query: String, // query that found the image
 }

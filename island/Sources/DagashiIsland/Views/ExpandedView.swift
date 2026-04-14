@@ -141,6 +141,7 @@ struct WebViewWrapper: NSViewRepresentable {
                         }
                     }
                 }
+                return // frames sent — don't follow up with showLoading
             }
 
             if model.isLoading {

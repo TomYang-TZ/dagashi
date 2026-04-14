@@ -46,45 +46,9 @@ struct IslandView: View {
                     .frame(width: 420)
                     .opacity(isOpen ? 1 : 0)
             }
-            .overlay(alignment: .top) {
-                if model.isHovering && !isOpen {
-                    CursorHalo()
-                        .frame(width: 224, height: 38)
-                }
-            }
             .clipShape(shape)
             .shadow(color: .black.opacity(isOpen ? 0.15 : 0), radius: 16, y: 8)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .animation(.spring(response: 0.45, dampingFraction: 0.88), value: model.notchStatus)
-            .animation(.easeInOut(duration: 0.2), value: model.isHovering)
-    }
-}
-
-struct CursorHalo: View {
-    @State private var pulse: Bool = false
-
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 16)
-                .fill(
-                    RadialGradient(
-                        colors: [
-                            Color.white.opacity(pulse ? 0.12 : 0.06),
-                            Color.white.opacity(0)
-                        ],
-                        center: .center,
-                        startRadius: 5,
-                        endRadius: 80
-                    )
-                )
-
-            RoundedRectangle(cornerRadius: 16)
-                .strokeBorder(Color.white.opacity(pulse ? 0.15 : 0.08), lineWidth: 1)
-        }
-        .onAppear {
-            withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
-                pulse = true
-            }
-        }
     }
 }

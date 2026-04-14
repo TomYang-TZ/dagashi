@@ -455,6 +455,7 @@ struct CollapsedView: View {
                 // Person body
                 Circle()
                     .fill(Color(red: 0.9, green: 0.8, blue: 0.7))
+                    .overlay(Circle().stroke(Color(red: 0.35, green: 0.3, blue: 0.25), lineWidth: 0.5))
                     .frame(width: 3, height: 3)
                 Rectangle()
                     .fill(person.color)
@@ -476,6 +477,7 @@ struct CollapsedView: View {
                 // Rider
                 Circle()
                     .fill(Color(red: 0.9, green: 0.8, blue: 0.7))
+                    .overlay(Circle().stroke(Color(red: 0.35, green: 0.3, blue: 0.25), lineWidth: 0.5))
                     .frame(width: 2, height: 2)
                 Rectangle()
                     .fill(person.color)
