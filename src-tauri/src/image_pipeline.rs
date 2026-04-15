@@ -56,21 +56,36 @@ fn clean_anime_title(title: &str) -> String {
 }
 
 /// Check if a GIF result's title is relevant to the character/anime.
-/// Requires character's first name to appear in the title.
-/// Falls back to anime title match only if title has no character info.
-fn is_relevant(title: &str, character_name: &str, _anime_title: &str) -> bool {
+/// Requires character's first name AND a word from the anime title to appear.
+/// This prevents false positives from common names (e.g. "Madoka" matching Madoka Magica
+/// when we wanted a character from a completely different anime).
+fn is_relevant(title: &str, character_name: &str, anime_title: &str) -> bool {
     if title.is_empty() {
         return true; // no metadata to filter on
     }
     let title_lower = title.to_lowercase();
 
-    // Character's first name must appear in the GIF title
+    // Character's first name must appear
     let character_first = character_name.split_whitespace().next().unwrap_or("");
-    if !character_first.is_empty() && title_lower.contains(&character_first.to_lowercase()) {
+    let has_character = !character_first.is_empty()
+        && title_lower.contains(&character_first.to_lowercase());
+
+    // At least one significant word from the anime title must also appear
+    let clean_title = clean_anime_title(anime_title);
+    let has_anime = clean_title
+        .split_whitespace()
+        .filter(|w| w.len() >= 3) // skip short words like "no", "wa", "de"
+        .any(|w| title_lower.contains(&w.to_lowercase()));
+
+    if has_character && has_anime {
+        return true;
+    }
+    // If only character name matches, still accept — some GIFs don't mention the anime
+    if has_character {
         return true;
     }
 
-    eprintln!("[dagashi] Skipping irrelevant result: {:?} (wanted {} / {})", title, character_name, _anime_title);
+    eprintln!("[dagashi] Skipping irrelevant result: {:?} (wanted {} / {})", title, character_name, anime_title);
     false
 }
 
@@ -88,10 +103,26 @@ pub fn fetch_frames(
     klipy_api_key: Option<&str>,
 ) -> Result<PipelineResult, String> {
     let clean_title = clean_anime_title(anime_title);
+    // Strip character name and anime title from LLM query to get just the descriptive words
+    let descriptors = search_query
+        .to_lowercase()
+        .replace(&character_name.to_lowercase(), "")
+        .replace(&clean_title.to_lowercase(), "")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+
     let queries = [
+        // Character name + LLM descriptors (most targeted, no anime title bloat)
+        if descriptors.is_empty() {
+            character_name.to_string()
+        } else {
+            format!("{} {}", character_name, descriptors)
+        },
+        // Just character name
+        character_name.to_string(),
+        // Character name + anime title (fallback)
         format!("{} {}", character_name, clean_title),
-        search_query.to_string(),
-        format!("{} anime", character_name),
     ];
 
     for query in &queries {
