@@ -9,7 +9,7 @@ pub struct Config {
     pub rarity_thresholds: RarityThresholds,
     pub llm: LlmConfig,
     pub ascii: AsciiConfig,
-    pub image_source: String, // "tenor" or "klipy"
+    pub image_source: String, // "klipy"
     pub klipy_api_key: Option<String>,
 }
 
@@ -76,7 +76,7 @@ impl Default for Config {
             ascii: AsciiConfig {
                 columns: 100,
             },
-            image_source: "tenor".to_string(),
+            image_source: "klipy".to_string(),
             klipy_api_key: None,
         }
     }

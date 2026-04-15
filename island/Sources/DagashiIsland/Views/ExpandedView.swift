@@ -38,11 +38,11 @@ struct ExpandedView: View {
 
                     // Open main app button
                     Button(action: {
-                        if let app = NSRunningApplication.runningApplications(withBundleIdentifier: "com.dagashi.desktop").first {
-                            app.activate()
-                        } else {
-                            NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications/Dagashi.app"))
-                        }
+                        // 'open' triggers Tauri's RunEvent::Reopen which unhides the window
+                        let process = Process()
+                        process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+                        process.arguments = ["-a", "Dagashi"]
+                        try? process.run()
                     }) {
                         Text("OPEN")
                             .font(.system(size: 5, weight: .bold, design: .monospaced))

@@ -6,7 +6,6 @@ use std::io::Cursor;
 
 use crate::jikan;
 use crate::klipy;
-use crate::tenor;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FramePixel {
@@ -27,7 +26,7 @@ pub struct PipelineResult {
     pub frames: Vec<AsciiFrame>,
     pub cols: u32,
     pub rows: u32,
-    pub source: String,        // "tenor", "klipy", or "jikan"
+    pub source: String,        // "klipy" or "jikan"
     pub source_url: String,    // original image URL
     pub matched_query: String, // query that found the image
 }
@@ -77,11 +76,16 @@ fn is_relevant(title: &str, character_name: &str, anime_title: &str) -> bool {
         .filter(|w| w.len() >= 3) // skip short words like "no", "wa", "de"
         .any(|w| title_lower.contains(&w.to_lowercase()));
 
-    if has_character && has_anime {
+    // Full name match (both first and last name in title) — accept without anime check
+    let has_full_name = character_name.split_whitespace().count() >= 2
+        && character_name.split_whitespace()
+            .all(|part| title_lower.contains(&part.to_lowercase()));
+
+    if has_full_name {
         return true;
     }
-    // If only character name matches, still accept — some GIFs don't mention the anime
-    if has_character {
+    // First name + anime keyword — both required to avoid common name false positives
+    if has_character && has_anime {
         return true;
     }
 
@@ -140,23 +144,12 @@ pub fn fetch_frames(
     add(format!("{} {}", character_name, clean_title));
 
     for query in &queries {
-        let results: Vec<GifResult> = match image_source {
-            "klipy" => {
-                let key = klipy_api_key.ok_or("klipy_api_key not set")?;
-                eprintln!("[dagashi] Klipy search: {}", query);
-                klipy::search_gifs(query, 10, key)
-                    .into_iter()
-                    .map(|r| GifResult { url: r.url, title: r.title })
-                    .collect()
-            }
-            _ => {
-                eprintln!("[dagashi] Tenor search: {}", query);
-                tenor::search_gifs(query, 10)
-                    .into_iter()
-                    .map(|r| GifResult { url: r.url, title: r.title })
-                    .collect()
-            }
-        };
+        let key = klipy_api_key.ok_or("klipy_api_key not set")?;
+        eprintln!("[dagashi] Klipy search: {}", query);
+        let results: Vec<GifResult> = klipy::search_gifs(query, 10, key)
+            .into_iter()
+            .map(|r| GifResult { url: r.url, title: r.title })
+            .collect();
         eprintln!("[dagashi] Got {} URLs", results.len());
         for (i, result) in results.iter().enumerate() {
             if used_urls.contains(&result.url) {

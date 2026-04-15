@@ -22,7 +22,7 @@
     </div>
     <button id="island-toggle" class="nav-btn" title="Show island overlay" onclick="__TAURI_INTERNALS__.invoke('show_island')" style="margin-right:8px;opacity:0.6">
       <span>&#x1F3DD;</span>
-      <span>ISLAND</span>
+      <span style="font-family:var(--pixel-font);font-size:6px;letter-spacing:1px">ISLAND</span>
     </button>
     <div class="deaf-wrapper">
       <button id="deaf-toggle" class="nav-btn" title="Toggle deaf mode (Cmd+Shift+D)">
@@ -699,16 +699,6 @@ async function renderSettings() {
 
   page.innerHTML = `
     <div class="settings-section">
-      <div class="settings-label">IMAGE SOURCE</div>
-      <div class="settings-row">
-        <button class="mode-btn ${config.image_source === 'tenor' ? 'active' : ''}"
-          data-source="tenor">TENOR</button>
-        <button class="mode-btn ${config.image_source === 'klipy' ? 'active' : ''}"
-          data-source="klipy">KLIPY</button>
-      </div>
-    </div>
-
-    <div class="settings-section" id="klipy-key-section" style="${config.image_source === 'klipy' ? '' : 'display:none'}">
       <div class="settings-label">KLIPY API KEY</div>
       <input class="settings-input" id="set-klipy-key"
         value="${config.klipy_api_key || ''}"
@@ -734,8 +724,6 @@ async function renderSettings() {
   document.getElementById('save-settings').addEventListener('click', async () => {
     const modelBtn = page.querySelector('[data-model].active');
 
-    const sourceBtn = page.querySelector('[data-source].active');
-    config.image_source = sourceBtn?.dataset.source || 'tenor';
     config.klipy_api_key = document.getElementById('set-klipy-key').value || null;
     config.llm.cli_model = modelBtn?.dataset.model || 'haiku';
 
@@ -752,14 +740,6 @@ async function renderSettings() {
     btn.addEventListener('click', () => {
       page.querySelectorAll('[data-model]').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-    });
-  });
-  page.querySelectorAll('[data-source]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      page.querySelectorAll('[data-source]').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      document.getElementById('klipy-key-section').style.display =
-        btn.dataset.source === 'klipy' ? '' : 'none';
     });
   });
 }

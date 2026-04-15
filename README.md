@@ -24,13 +24,13 @@ Includes a **Dynamic Island** overlay at the macOS notch — a pixel art dagashi
 ## Quick Start
 
 ```bash
-git clone https://github.com/tomyangdev/dagashi.git
+git clone https://github.com/TomYang-TZ/dagashi.git
 cd dagashi && pnpm install
 ./scripts/install.sh
 ./scripts/start.sh
 ```
 
-**Requires:** macOS 14+, Rust, pnpm, [Claude Code CLI](https://claude.ai/claude-code)
+**Requires:** macOS 14+, Rust, pnpm, [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code)
 
 ## How It Works
 
@@ -83,7 +83,7 @@ Three processes, shared filesystem (`~/.dagashi/`):
 
 | Component | Stack | Role |
 |-----------|-------|------|
-| **dagashi-daemon** | Rust + Swift | Keystroke capture via CGEventTap |
+| **dagashi-daemon** | Rust | Keystroke stats aggregation |
 | **Dagashi.app** | Tauri v2 (Rust + JS) | UI, gacha pulls, gallery |
 | **DagashiIsland** | Swift/SwiftUI | Dynamic Island overlay at notch |
 
@@ -103,7 +103,7 @@ Only aggregate stats — character frequencies, hourly volume, key regions. No w
 
 ## Credits
 
-[Press Start 2P](https://fonts.google.com/specimen/Press+Start+2P) | [MyAnimeList](https://myanimelist.net) via [Jikan API](https://jikan.moe) | [Tenor](https://tenor.com) | [Klipy](https://klipy.com) | [Open Vibe Island](https://github.com/Octane0411/open-vibe-island)
+[Press Start 2P](https://fonts.google.com/specimen/Press+Start+2P) | [MyAnimeList](https://myanimelist.net) via [Jikan API](https://jikan.moe) | [Klipy](https://klipy.com) | [Open Vibe Island](https://github.com/Octane0411/open-vibe-island)
 
 ## License
 

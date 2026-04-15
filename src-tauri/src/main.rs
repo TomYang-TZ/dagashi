@@ -6,7 +6,6 @@ mod gacha;
 mod image_pipeline;
 mod jikan;
 mod klipy;
-mod tenor;
 mod llm;
 mod stats;
 mod storage;
