@@ -87,6 +87,16 @@ Three processes, shared filesystem (`~/.dagashi/`):
 | **Dagashi.app** | Tauri v2 (Rust + JS) | UI, gacha pulls, gallery |
 | **DagashiIsland** | Swift/SwiftUI | Dynamic Island overlay at notch |
 
+## Why "Dagashi"?
+
+Dagashi (駄菓子) are cheap Japanese candy from tiny neighborhood shops. You'd walk in after school with pocket change, spin a lottery wheel, and peel open a mystery wrapper. The candy was cheap. The moment wasn't.
+
+You type thousands of keystrokes every day. You work hard. You deserve a mystery surprise every hour.
+
+That's Dagashi. Your keystrokes are pocket change. Every hour, the shop cashes them in and hands you a gacha pull, a character from 300 anime, rendered as animated ASCII art. Common pulls come easy. Legendaries take real effort.
+
+The Dynamic Island at your macOS notch is the shop itself, a pixel art dagashi-ya with live weather and foot traffic. Click to open it like unwrapping a candy. Your latest pull is inside.
+
 ## Privacy
 
 Only aggregate stats — character frequencies, hourly volume, key regions. No words, no sentences, no order. All processing happens locally on your machine — nothing is sent to any server. **Deaf mode** instantly pauses recording.
