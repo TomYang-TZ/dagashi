@@ -1,6 +1,17 @@
 node_modules/
 target/
+island/.build/
 .DS_Store
 *.lock
 .env
+.env.local
+.env.*.local
 .superpowers/
+dist/
+.vscode/
+.idea/
+*.iml
+*.swp
+*.swo
+*~
+.turbo/

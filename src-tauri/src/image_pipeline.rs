@@ -250,23 +250,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn reprocess_erza() {
-        let url = "https://media.tenor.com/e8yuV9CLbLEAAAAd/erza-scarlet.gif";
-        let bytes = download(url).expect("download failed");
-        let result = decode_gif(&bytes, 100).expect("decode failed");
-        eprintln!("Erza: {} frames sampled from GIF", result.frames.len());
-        assert!(!result.frames.is_empty());
-
-        // Save to pull directory
-        let dir = dirs::home_dir().unwrap().join(".dagashi/pulls/2026-04-11-13");
-        let mut full_result = result;
-        full_result.source_url = url.to_string();
-        let json = serde_json::to_string(&full_result).unwrap();
-        std::fs::write(dir.join("frames.json"), json).unwrap();
-        eprintln!("Saved {} frames to {:?}", full_result.frames.len(), dir);
-    }
-
-    #[test]
     fn relevance_filter() {
         // Character first name in title
         assert!(is_relevant("Gintoki Gintama: Intense Gaze", "Gintoki Sakata", "Gintama"));
