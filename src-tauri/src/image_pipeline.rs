@@ -96,6 +96,7 @@ pub fn fetch_frames(
     search_query: &str,
     character_name: &str,
     anime_title: &str,
+    scene: &str,
     mal_id: u64,
     cols: u32,
     used_urls: &HashSet<String>,
@@ -112,18 +113,31 @@ pub fn fetch_frames(
         .collect::<Vec<_>>()
         .join(" ");
 
-    let queries = [
-        // Character name + LLM descriptors (most targeted, no anime title bloat)
-        if descriptors.is_empty() {
-            character_name.to_string()
-        } else {
-            format!("{} {}", character_name, descriptors)
-        },
-        // Just character name
-        character_name.to_string(),
-        // Character name + anime title (fallback)
-        format!("{} {}", character_name, clean_title),
-    ];
+    // Build deduplicated query list
+    let mut queries = Vec::new();
+    let mut seen = HashSet::new();
+
+    let mut add = |q: String| {
+        let key = q.to_lowercase();
+        if seen.insert(key) { queries.push(q); }
+    };
+
+    // 1. Character name + LLM descriptors (most targeted)
+    if !descriptors.is_empty() {
+        add(format!("{} {}", character_name, descriptors));
+    }
+    // 2. Character name + first few meaningful words from scene description
+    let scene_words: Vec<&str> = scene.split_whitespace()
+        .filter(|w| w.len() >= 4) // skip short words
+        .take(2)
+        .collect();
+    if !scene_words.is_empty() {
+        add(format!("{} {}", character_name, scene_words.join(" ")));
+    }
+    // 3. Just character name
+    add(character_name.to_string());
+    // 4. Character name + anime title (fallback)
+    add(format!("{} {}", character_name, clean_title));
 
     for query in &queries {
         let results: Vec<GifResult> = match image_source {

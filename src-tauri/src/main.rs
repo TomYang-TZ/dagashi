@@ -14,7 +14,7 @@ mod storage;
 
 use chrono::Timelike;
 use std::sync::Mutex;
-use tauri::State;
+use tauri::{Manager, State};
 
 struct AppState {
     config: Mutex<config::Config>,
@@ -187,6 +187,7 @@ fn do_pull_inner(
                 &sel.search_query,
                 &sel.character,
                 &anime.title,
+                &sel.scene,
                 anime.mal_id,
                 cfg.ascii.columns,
                 &used_urls,
@@ -360,29 +361,33 @@ fn main() {
             do_pull,
             show_island,
         ])
-        .on_window_event({
-            let data_dir = data_dir.clone();
-            move |window, event| {
-                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                    // Hide instead of quit — keep running for auto-pulls
-                    api.prevent_close();
-                    window.hide().ok();
-                    // Signal island to hide
-                    std::fs::write(data_dir.join("app-hidden"), "1").ok();
-                    eprintln!("[dagashi] Window hidden (use dock icon or start.sh to reopen)");
-                }
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                // Hide instead of quit — keep running for auto-pulls
+                api.prevent_close();
+                window.hide().ok();
+                eprintln!("[dagashi] Window hidden");
             }
         })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|_app, event| {
-            if let tauri::RunEvent::Exit = event {
-                // Kill island and daemon when the app actually quits
-                eprintln!("[dagashi] Quitting — stopping island");
-                std::process::Command::new("pkill")
-                    .args(["-f", "DagashiIsland"])
-                    .output()
-                    .ok();
+        .run(|app, event| {
+            match event {
+                tauri::RunEvent::Reopen { .. } => {
+                    // Dock icon clicked or app activated — show the hidden window
+                    if let Some(window) = app.get_webview_window("main") {
+                        window.show().ok();
+                        window.set_focus().ok();
+                    }
+                }
+                tauri::RunEvent::Exit => {
+                    eprintln!("[dagashi] Quitting — stopping island");
+                    std::process::Command::new("pkill")
+                        .args(["-f", "DagashiIsland"])
+                        .output()
+                        .ok();
+                }
+                _ => {}
             }
         });
 }

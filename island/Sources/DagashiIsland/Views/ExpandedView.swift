@@ -38,7 +38,11 @@ struct ExpandedView: View {
 
                     // Open main app button
                     Button(action: {
-                        NSWorkspace.shared.open(URL(string: "file:///Applications/Dagashi.app")!)
+                        if let app = NSRunningApplication.runningApplications(withBundleIdentifier: "com.dagashi.desktop").first {
+                            app.activate()
+                        } else {
+                            NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications/Dagashi.app"))
+                        }
                     }) {
                         Text("OPEN")
                             .font(.system(size: 5, weight: .bold, design: .monospaced))
