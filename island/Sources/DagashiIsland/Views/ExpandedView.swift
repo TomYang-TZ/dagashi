@@ -51,6 +51,18 @@ struct ExpandedView: View {
                             )
                     }
                     .buttonStyle(.plain)
+
+                    // Collapse button
+                    Button(action: {
+                        model.notchStatus = .closed
+                        model.onCollapse()
+                    }) {
+                        Text("×")
+                            .font(.system(size: 8, weight: .bold, design: .monospaced))
+                            .foregroundColor(Color(red: 0.35, green: 0.28, blue: 0.18).opacity(0.4))
+                            .frame(width: 14, height: 14)
+                    }
+                    .buttonStyle(.plain)
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)

@@ -291,6 +291,26 @@ struct CollapsedView: View {
         }
     }
 
+    private var closeButtonFg: Color {
+        switch model.sceneWeather {
+        case .night:          return Color(red: 0.7, green: 0.7, blue: 0.8)
+        case .stormy:         return Color(red: 0.85, green: 0.85, blue: 0.85)
+        case .rainy:          return Color(red: 0.3, green: 0.3, blue: 0.35)
+        case .snowy:          return Color(red: 0.4, green: 0.4, blue: 0.5)
+        default:              return Color(red: 0.4, green: 0.32, blue: 0.2)
+        }
+    }
+
+    private var closeButtonBg: Color {
+        switch model.sceneWeather {
+        case .night:          return Color(red: 0.2, green: 0.2, blue: 0.3).opacity(0.7)
+        case .stormy:         return Color(red: 0.3, green: 0.32, blue: 0.38).opacity(0.7)
+        case .rainy:          return Color(red: 0.75, green: 0.77, blue: 0.8).opacity(0.7)
+        case .snowy:          return Color.white.opacity(0.6)
+        default:              return Color(red: 0.88, green: 0.82, blue: 0.7).opacity(0.7)
+        }
+    }
+
     private var groundColor: Color {
         switch model.sceneWeather {
         case .snowy:  return Color(red: 0.92, green: 0.93, blue: 0.95)
@@ -412,8 +432,26 @@ struct CollapsedView: View {
                     PixelSun(tick: tick)
                         .offset(x: geo.size.width - 22, y: 3)
                 }
+
+                // Close button — appears on hover, top-right
+                if model.isHovering {
+                    Button(action: {
+                        model.onHideIsland?()
+                    }) {
+                        Text("×")
+                            .font(.system(size: 9, weight: .bold, design: .monospaced))
+                            .foregroundColor(closeButtonFg)
+                            .frame(width: 14, height: 14)
+                            .background(closeButtonBg)
+                            .clipShape(RoundedRectangle(cornerRadius: 3))
+                    }
+                    .buttonStyle(.plain)
+                    .offset(x: geo.size.width - 18, y: 3)
+                    .transition(.opacity)
+                }
             }
         }
+        .animation(.easeInOut(duration: 0.15), value: model.isHovering)
         .onAppear { startAnimation() }
         .onDisappear { timer?.invalidate() }
     }

@@ -16,6 +16,19 @@ class OverlayController {
         self.model = model
     }
 
+    var isVisible = true
+
+    func hide() {
+        panel?.orderOut(nil)
+        isVisible = false
+        model.notchStatus = .closed
+    }
+
+    func reshowPanel() {
+        panel?.orderFrontRegardless()
+        isVisible = true
+    }
+
     func show() {
         guard let screen = NSScreen.main else { return }
 
@@ -44,9 +57,18 @@ class OverlayController {
         // Use NSEvent.mouseLocation for screen coordinates
         // Hover near notch → halo effect
         moveMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { [weak self] _ in
-            guard let self = self else { return }
+            guard let self = self, let screen = NSScreen.main else { return }
             let mouse = NSEvent.mouseLocation // screen coordinates
-            let isNear = panel.frame.contains(mouse)
+            // Only detect hover over the visible collapsed pill, not the full panel
+            let pillW: CGFloat = self.closedSize.width
+            let pillH: CGFloat = self.closedSize.height
+            let pillRect = NSRect(
+                x: screen.frame.midX - pillW / 2,
+                y: screen.frame.maxY - pillH,
+                width: pillW,
+                height: pillH
+            )
+            let isNear = pillRect.contains(mouse)
 
             DispatchQueue.main.async {
                 if isNear && self.model.notchStatus == .closed {

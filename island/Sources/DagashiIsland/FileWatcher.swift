@@ -29,10 +29,18 @@ class FileWatcher {
 
     private var wasPulling = false
 
-    // Poll for the "pulling" signal file
+    // Poll for signal files
     private func startPullingPoller() {
         pullingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             guard let self = self, let model = self.model else { return }
+
+            // Check if main app wants to show the island
+            let showFile = self.dagashiDir.appendingPathComponent("show-island")
+            if FileManager.default.fileExists(atPath: showFile.path) {
+                try? FileManager.default.removeItem(at: showFile)
+                model.onShowIsland?()
+            }
+
             let pullingFile = self.dagashiDir.appendingPathComponent("pulling")
             let isPulling = FileManager.default.fileExists(atPath: pullingFile.path)
 

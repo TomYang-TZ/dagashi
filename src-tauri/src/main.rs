@@ -101,6 +101,12 @@ fn load_pull_meta(date: String) -> Result<storage::PullMeta, String> {
 }
 
 #[tauri::command]
+fn show_island() -> Result<(), String> {
+    let signal = config::data_dir().join("show-island");
+    std::fs::write(&signal, "1").map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 async fn do_pull(state: State<'_, AppState>) -> Result<storage::PullMeta, String> {
     let stats_snapshot = get_stats();
     let cfg = state.config.lock().unwrap().clone();
@@ -336,6 +342,7 @@ fn main() {
     });
 
     eprintln!("[dagashi] Starting Tauri...");
+    let data_dir = config::data_dir();
     tauri::Builder::default()
         .manage(AppState {
             config: Mutex::new(cfg),
@@ -351,7 +358,31 @@ fn main() {
             load_pull_frames,
             load_pull_meta,
             do_pull,
+            show_island,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .on_window_event({
+            let data_dir = data_dir.clone();
+            move |window, event| {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    // Hide instead of quit — keep running for auto-pulls
+                    api.prevent_close();
+                    window.hide().ok();
+                    // Signal island to hide
+                    std::fs::write(data_dir.join("app-hidden"), "1").ok();
+                    eprintln!("[dagashi] Window hidden (use dock icon or start.sh to reopen)");
+                }
+            }
+        })
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_app, event| {
+            if let tauri::RunEvent::Exit = event {
+                // Kill island and daemon when the app actually quits
+                eprintln!("[dagashi] Quitting — stopping island");
+                std::process::Command::new("pkill")
+                    .args(["-f", "DagashiIsland"])
+                    .output()
+                    .ok();
+            }
+        });
 }

@@ -20,8 +20,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
 
         let model = AppModel()
-        overlayController = OverlayController(model: model)
-        overlayController?.show()
+        let controller = OverlayController(model: model)
+        controller.show()
+        overlayController = controller
+
+        model.onHideIsland = { [weak controller] in
+            controller?.hide()
+        }
+        model.onShowIsland = { [weak controller] in
+            controller?.reshowPanel()
+        }
 
         // Start watching for pull changes and weather
         model.fileWatcher.startWatching()

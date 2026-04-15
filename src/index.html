@@ -20,6 +20,10 @@
       <button class="nav-tab" data-page="collection">ROSTER</button>
       <button class="nav-tab" data-page="settings">SETTINGS</button>
     </div>
+    <button id="island-toggle" class="nav-btn" title="Show island overlay" onclick="__TAURI_INTERNALS__.invoke('show_island')" style="margin-right:8px;opacity:0.6">
+      <span>&#x1F3DD;</span>
+      <span>ISLAND</span>
+    </button>
     <div class="deaf-wrapper">
       <button id="deaf-toggle" class="nav-btn" title="Toggle deaf mode (Cmd+Shift+D)">
         <span id="deaf-icon">&#x1F442;</span>

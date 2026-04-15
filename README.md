@@ -63,6 +63,10 @@ A standalone Swift app that sits at the macOS notch.
 - **Expanded:** click to reveal latest pull as animated ASCII art
 - **Auto-cycles:** color clean → color block → mono clean → mono block
 
+<p align="center">
+  <img src="assets/island-night.gif" alt="Dynamic Island at night — expanded pull view" width="600">
+</p>
+
 ## Scripts
 
 ```bash

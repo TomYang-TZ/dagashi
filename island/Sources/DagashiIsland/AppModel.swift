@@ -40,6 +40,11 @@ class AppModel {
     var webViewHeight: CGFloat = 0
     var sceneWeather: SceneWeather = .sunny
 
+    /// Called by the × button to hide the island overlay.
+    var onHideIsland: (() -> Void)?
+    /// Called when the main app signals the island to reappear.
+    var onShowIsland: (() -> Void)?
+
     let fileWatcher: FileWatcher
     let weatherService: WeatherService
 
