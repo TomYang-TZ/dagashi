@@ -9,7 +9,7 @@ class OverlayController {
     var keyMonitor: Any?
     var moveMonitor: Any?
 
-    let closedSize = NSSize(width: 224, height: 38)
+    let closedSize = NSSize(width: IslandConstants.pillWidth, height: IslandConstants.pillHeight)
     let maxPanelSize = NSSize(width: 500, height: 500) // large enough for any content
 
     init(model: AppModel) {
@@ -97,8 +97,8 @@ class OverlayController {
             let mouse = NSEvent.mouseLocation
 
             // Collapsed pill rect (centered at top of screen)
-            let pillW: CGFloat = 224
-            let pillH: CGFloat = 38
+            let pillW = IslandConstants.pillWidth
+            let pillH = IslandConstants.pillHeight
             let pillRect = NSRect(
                 x: screen.frame.midX - pillW / 2,
                 y: screen.frame.maxY - pillH,

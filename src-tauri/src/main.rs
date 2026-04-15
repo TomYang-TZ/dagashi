@@ -7,7 +7,6 @@ mod image_pipeline;
 mod jikan;
 mod klipy;
 mod tenor;
-mod keylogger;
 mod llm;
 mod stats;
 mod storage;
@@ -50,10 +49,12 @@ fn save_config_cmd(state: State<AppState>, new_config: config::Config) -> Result
 
 #[tauri::command]
 fn toggle_deaf_mode(state: State<AppState>) -> bool {
-    let deaf = !keylogger::is_deaf();
-    keylogger::set_deaf_mode(deaf);
+    let mut cfg = state.config.lock().unwrap();
+    let deaf = !cfg.keystroke_capture.deaf_mode;
+    cfg.keystroke_capture.deaf_mode = deaf;
+    config::save_config(&cfg).ok();
 
-    // Write/remove file flag so the daemon sees it too
+    // Write/remove file flag so the daemon sees it
     let flag_path = config::data_dir().join("deaf");
     if deaf {
         std::fs::write(&flag_path, "1").ok();
@@ -61,9 +62,6 @@ fn toggle_deaf_mode(state: State<AppState>) -> bool {
         std::fs::remove_file(&flag_path).ok();
     }
 
-    let mut cfg = state.config.lock().unwrap();
-    cfg.keystroke_capture.deaf_mode = deaf;
-    config::save_config(&cfg).ok();
     deaf
 }
 
@@ -239,7 +237,7 @@ fn do_pull_inner(
         now.hour(),
         now.minute()
     );
-    let mut meta = storage::PullMeta {
+    let meta = storage::PullMeta {
         date: pull_key,
         character: selection.character,
         scene: selection.scene,
@@ -343,7 +341,6 @@ fn main() {
     });
 
     eprintln!("[dagashi] Starting Tauri...");
-    let data_dir = config::data_dir();
     tauri::Builder::default()
         .manage(AppState {
             config: Mutex::new(cfg),

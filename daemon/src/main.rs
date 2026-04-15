@@ -1,42 +1,13 @@
 use chrono::{Local, Timelike};
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use dagashi_common::DailyStats;
 use std::fs;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader};
 use std::process::{Command, Stdio};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 static TOTAL_KEYS: AtomicU64 = AtomicU64::new(0);
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-struct DailyStats {
-    date: String,
-    total: u64,
-    chars: HashMap<String, u64>,
-    categories: CategoryCounts,
-    backspace_count: u64,
-    shift_count: u64,
-    capslock_count: u64,
-    hourly_volume: Vec<u64>,
-    regions: RegionCounts,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-struct CategoryCounts {
-    letter: u64,
-    number: u64,
-    symbol: u64,
-    modifier: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-struct RegionCounts {
-    left_hand: u64,
-    right_hand: u64,
-    home_row: u64,
-}
 
 fn data_dir() -> std::path::PathBuf {
     dirs::home_dir().expect("no home dir").join(".dagashi")

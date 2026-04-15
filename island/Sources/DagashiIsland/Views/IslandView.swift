@@ -17,7 +17,7 @@ struct IslandView: View {
             let artH = model.webViewHeight > 0 ? min(model.webViewHeight, 400) : 200
             return CGSize(width: 420, height: artH + 50)
         }
-        return CGSize(width: 224, height: 38)
+        return IslandConstants.pillSize
     }
 
     private var bgColor: Color {
@@ -37,7 +37,7 @@ struct IslandView: View {
             .overlay(alignment: .top) {
                 // Collapsed content
                 CollapsedView(model: model)
-                    .frame(width: 224, height: 38)
+                    .frame(width: IslandConstants.pillWidth, height: IslandConstants.pillHeight)
                     .opacity(isOpen ? 0 : 1)
             }
             .overlay(alignment: .top) {
