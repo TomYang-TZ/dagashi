@@ -21,6 +21,8 @@ A desktop app that counts your keystrokes, then turns them into gacha pulls of a
 
 Includes a **Dynamic Island** overlay at the macOS notch — a pixel art dagashi shop with walking characters, that expands to show your latest pull.
 
+[**Watch demo**](https://drive.google.com/file/d/1vOIVyaRgzuI6HFPqfCUYkSOxxNEuhYXG/view?usp=sharing)
+
 ## Quick Start
 
 ```bash
