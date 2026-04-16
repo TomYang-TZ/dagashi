@@ -648,8 +648,11 @@ async function renderCollection() {
       page.querySelectorAll('[data-filter]').forEach(function(b) { b.classList.remove('active'); });
       btn.classList.add('active');
       document.getElementById('anime-grid').innerHTML = renderAnimeGrid(dbStatus, collectedAnime, btn.dataset.filter);
+      bindRosterClicks(collection);
     });
   });
+
+  bindRosterClicks(collection);
 
   // Poll for DB updates if still loading
   if (loading && !animeDbPollInterval) {
@@ -669,6 +672,47 @@ async function renderCollection() {
   }
 }
 
+function bindRosterClicks(collection) {
+  document.querySelectorAll('.roster-card.collected').forEach(function(card) {
+    card.style.cursor = 'pointer';
+    card.addEventListener('click', function() {
+      var animeTitle = card.dataset.anime;
+      var pulls = collection.pulls.filter(function(p) { return p.anime_title === animeTitle; });
+      showAnimePulls(animeTitle, pulls);
+    });
+  });
+}
+
+function showAnimePulls(animeTitle, pulls) {
+  var grid = document.getElementById('anime-grid');
+  var html = '<div style="grid-column:1/-1">';
+  html += '<button class="mode-btn active" id="back-to-roster" style="margin-bottom:12px;font-size:6px">&larr; BACK</button>';
+  html += '<div style="font-size:10px;font-weight:bold;color:var(--text-bright);margin-bottom:8px">' + esc(animeTitle) + '</div>';
+  html += '<div style="font-size:7px;color:var(--text-dim);margin-bottom:12px">' + pulls.length + ' PULL' + (pulls.length !== 1 ? 'S' : '') + '</div>';
+  html += '</div>';
+
+  for (var pull of [...pulls].reverse()) {
+    html += '<div class="gallery-card" data-date="' + pull.date + '">';
+    html += '<div class="gallery-card-date">' + pull.date + '</div>';
+    html += '<span class="rarity-badge rarity-' + pull.rarity + '">' + pull.rarity.toUpperCase() + '</span>';
+    html += '<div class="gallery-card-name">' + esc(pull.character) + '</div>';
+    html += '<div class="gallery-card-preview">' + esc(pull.scene) + '</div>';
+    html += '</div>';
+  }
+
+  grid.innerHTML = html;
+
+  // Click to view pull
+  grid.querySelectorAll('.gallery-card').forEach(function(card) {
+    card.addEventListener('click', function() { viewPull(card.dataset.date); });
+  });
+
+  // Back button
+  document.getElementById('back-to-roster').addEventListener('click', function() {
+    renderCollection();
+  });
+}
+
 function renderAnimeGrid(dbStatus, collectedAnime, filter) {
   var html = '';
   var animeList = dbStatus.anime || [];
@@ -683,7 +727,7 @@ function renderAnimeGrid(dbStatus, collectedAnime, filter) {
   for (var anime of filtered) {
     var isPulled = collectedAnime.indexOf(anime.title) >= 0;
     var cls = isPulled ? 'collected' : 'uncollected';
-    html += '<div class="roster-card ' + cls + '">';
+    html += '<div class="roster-card ' + cls + '" data-anime="' + esc(anime.title) + '">';
     html += '<span class="rarity-badge rarity-' + anime.rarity + '">#' + anime.rank + '</span>';
     html += '<div class="roster-name">' + esc(anime.title) + '</div>';
     if (anime.score) {
