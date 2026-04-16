@@ -66,6 +66,12 @@
 // DAGASHI — Main App
 // ============================================
 
+// HTML escape to prevent XSS from LLM output
+function esc(s) {
+  if (!s) return '';
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 // Tauri API — check at call time since __TAURI__ is injected after page load
 async function invoke(cmd, args) {
   if (window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke) {
@@ -440,8 +446,8 @@ async function renderGallery() {
       <div class="gallery-card" data-date="${pull.date}">
         <div class="gallery-card-date">${pull.date}</div>
         <span class="rarity-badge rarity-${pull.rarity}">${pull.rarity.toUpperCase()}</span>
-        <div class="gallery-card-name">${pull.character}</div>
-        <div class="gallery-card-preview">${pull.scene}</div>
+        <div class="gallery-card-name">${esc(pull.character)}</div>
+        <div class="gallery-card-preview">${esc(pull.scene)}</div>
       </div>
     `;
   }
@@ -499,11 +505,11 @@ function openPullPopover(frames, meta) {
     '</div>' +
     '<div class="result-card">' +
       '<span class="rarity-badge rarity-' + meta.rarity + '">' + meta.rarity.toUpperCase() + '</span>' +
-      '<div class="result-character">' + meta.character + '</div>' +
+      '<div class="result-character">' + esc(meta.character) + '</div>' +
       '<div style="font-size:8px;color:var(--text-dim);margin-bottom:4px">' +
-        (meta.anime_title || '') + ' ' + (meta.anime_rank ? '#' + meta.anime_rank : '') +
+        esc(meta.anime_title || '') + ' ' + (meta.anime_rank ? '#' + meta.anime_rank : '') +
       '</div>' +
-      '<div class="result-flavor">"' + meta.flavor_text + '"</div>' +
+      '<div class="result-flavor">"' + esc(meta.flavor_text) + '"</div>' +
       '<div class="mt-8" style="font-size:7px;color:var(--text-dim)">' +
         'SOURCE: ' + meta.source + ' | FRAMES: ' + meta.frame_count + ' | DATE: ' + meta.date +
       '</div>' +
@@ -679,7 +685,7 @@ function renderAnimeGrid(dbStatus, collectedAnime, filter) {
     var cls = isPulled ? 'collected' : 'uncollected';
     html += '<div class="roster-card ' + cls + '">';
     html += '<span class="rarity-badge rarity-' + anime.rarity + '">#' + anime.rank + '</span>';
-    html += '<div class="roster-name">' + anime.title + '</div>';
+    html += '<div class="roster-name">' + esc(anime.title) + '</div>';
     if (anime.score) {
       html += '<div class="roster-count">MAL ' + anime.score + ' | ' + (anime.members / 1000).toFixed(0) + 'K</div>';
     }

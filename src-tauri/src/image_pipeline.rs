@@ -31,11 +31,6 @@ pub struct PipelineResult {
     pub matched_query: String, // query that found the image
 }
 
-/// A unified search result from any GIF source.
-struct GifResult {
-    url: String,
-    title: String,
-}
 
 /// Strip season numbers, roman numerals, and other suffixes from anime titles.
 /// "Overlord III" → "Overlord", "Shingeki no Kyojin Season 2" → "Shingeki no Kyojin"
@@ -104,7 +99,6 @@ pub fn fetch_frames(
     mal_id: u64,
     cols: u32,
     used_urls: &HashSet<String>,
-    image_source: &str,
     klipy_api_key: Option<&str>,
 ) -> Result<PipelineResult, String> {
     let clean_title = clean_anime_title(anime_title);
@@ -146,10 +140,7 @@ pub fn fetch_frames(
     for query in &queries {
         let key = klipy_api_key.ok_or("klipy_api_key not set")?;
         eprintln!("[dagashi] Klipy search: {}", query);
-        let results: Vec<GifResult> = klipy::search_gifs(query, 10, key)
-            .into_iter()
-            .map(|r| GifResult { url: r.url, title: r.title })
-            .collect();
+        let results = klipy::search_gifs(query, 10, key);
         eprintln!("[dagashi] Got {} URLs", results.len());
         for (i, result) in results.iter().enumerate() {
             if used_urls.contains(&result.url) {
@@ -164,7 +155,7 @@ pub fn fetch_frames(
                     match decode_gif(&bytes, cols) {
                         Ok(mut pr) if !pr.frames.is_empty() => {
                             eprintln!("[dagashi] Using GIF #{} ({:?}) from query: {}", i, result.title, query);
-                            pr.source = image_source.to_string();
+                            pr.source = "klipy".to_string();
                             pr.source_url = result.url.clone();
                             pr.matched_query = query.clone();
                             return Ok(pr);
@@ -260,7 +251,7 @@ fn decode_static_image(data: &[u8], cols: u32) -> Result<AsciiFrame, String> {
 fn image_to_pixel_grid(img: &DynamicImage, cols: u32) -> AsciiFrame {
     let (w, h) = img.dimensions();
     let cell_w = w as f64 / cols as f64;
-    let cell_h = cell_w * 2.2; // monospace chars are ~2.2x tall as wide
+    let cell_h = cell_w * 2.0;
     let rows = (h as f64 / cell_h).max(1.0) as u32;
 
     let resized = img.resize_exact(cols, rows, image::imageops::FilterType::Triangle);

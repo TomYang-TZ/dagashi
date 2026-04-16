@@ -91,8 +91,16 @@ pub fn recent_pull_names(n: usize) -> Vec<String> {
         .collect()
 }
 
+fn validate_date(date: &str) -> Result<(), String> {
+    if date.contains('/') || date.contains('\\') || date.contains("..") {
+        return Err("invalid date".to_string());
+    }
+    Ok(())
+}
+
 /// Load a specific pull's frame data for the viewer
 pub fn load_pull_frames(date: &str) -> Result<PipelineResult, String> {
+    validate_date(date)?;
     let path = pulls_dir().join(date).join("frames.json");
     let data = fs::read_to_string(&path).map_err(|e| e.to_string())?;
     serde_json::from_str(&data).map_err(|e| e.to_string())
@@ -100,6 +108,7 @@ pub fn load_pull_frames(date: &str) -> Result<PipelineResult, String> {
 
 /// Load a specific pull's metadata
 pub fn load_pull_meta(date: &str) -> Result<PullMeta, String> {
+    validate_date(date)?;
     let path = pulls_dir().join(date).join("meta.json");
     let data = fs::read_to_string(&path).map_err(|e| e.to_string())?;
     serde_json::from_str(&data).map_err(|e| e.to_string())

@@ -188,7 +188,6 @@ fn do_pull_inner(
                 anime.mal_id,
                 cfg.ascii.columns,
                 &used_urls,
-                &cfg.image_source,
                 cfg.klipy_api_key.as_deref(),
             ) {
                 Ok(p) if p.frames.len() > 1 => {
@@ -282,14 +281,7 @@ fn launch_daemon_if_needed() {
     for path in &daemon_paths {
         if path.exists() {
             eprintln!("[dagashi] Launching daemon from {:?}", path);
-            // Launch daemon in background via Terminal so it inherits Input Monitoring
-            let script = format!(
-                "tell application \"Terminal\" to do script \"{}\" & \"\"",
-                path.display()
-            );
-            let _ = Command::new("osascript")
-                .args(["-e", &script])
-                .spawn();
+            let _ = Command::new(path).spawn();
             return;
         }
     }

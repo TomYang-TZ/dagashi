@@ -86,8 +86,13 @@ pub fn search_gifs(query: &str, limit: usize, api_key: &str) -> Vec<GifResult> {
 }
 
 fn urlencoded(s: &str) -> String {
-    s.replace(' ', "+")
-        .replace('&', "%26")
-        .replace('?', "%3F")
-        .replace('#', "%23")
+    s.bytes()
+        .map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                String::from(b as char)
+            }
+            b' ' => "+".to_string(),
+            _ => format!("%{:02X}", b),
+        })
+        .collect()
 }
