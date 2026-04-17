@@ -484,11 +484,13 @@ var debugPollInterval = null;
 // ============================================
 
 function showEasterEgg() {
-  // Banner
+  // Banner — insert below the pull status area
   var banner = document.createElement('div');
-  banner.style.cssText = 'position:fixed;top:30%;left:50%;transform:translate(-50%,-50%);z-index:9999;font-family:var(--pixel-font);text-align:center;pointer-events:none';
+  banner.style.cssText = 'text-align:center;margin-top:12px;font-family:var(--pixel-font);pointer-events:none';
   banner.innerHTML = '<div style="font-size:24px">🍬</div><div style="font-size:8px;color:var(--text-bright);letter-spacing:2px;margin-top:8px">HEY, YOU FOUND IT!</div>';
-  document.body.appendChild(banner);
+  var pullStatus = document.getElementById('pull-status');
+  if (pullStatus) pullStatus.parentNode.insertBefore(banner, pullStatus.nextSibling);
+  else document.body.appendChild(banner);
 
   // Candy confetti
   var candies = ['🍬','🍭','🍫','🧁','🍪','🎀','✨','🌟'];
