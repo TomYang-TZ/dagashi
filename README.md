@@ -68,9 +68,9 @@ A standalone Swift app that sits at the macOS notch.
 - **Auto-cycles:** color clean → color block → mono clean → mono block
 
 <p align="center">
-  <img src="assets/island-sunny.gif" alt="Dynamic Island — sunny weather" width="600">
-  <img src="assets/island-cloudy.gif" alt="Dynamic Island — cloudy weather" width="600">
-  <img src="assets/island-night.gif" alt="Dynamic Island at night — expanded pull view" width="600">
+  <img src="assets/island-sunny.gif" alt="Sunny" width="280">
+  <img src="assets/island-cloudy.gif" alt="Cloudy" width="280">
+  <img src="assets/island-night.gif" alt="Night" width="280">
 </p>
 
 ## Scripts
