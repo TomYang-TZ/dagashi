@@ -326,10 +326,11 @@ async function initPullPage() {
     document.getElementById('stats-summary').textContent = 'STATS ERROR: ' + err;
   }
 
-  // Dev: double-click countdown to trigger pull manually
+  // Easter egg: double-click countdown for a mystery candy
   document.getElementById('pull-countdown').addEventListener('dblclick', function() {
+    showEasterEgg();
     this.textContent = '[ PULLING... ]';
-    document.getElementById('pull-countdown-label').textContent = 'MANUAL PULL';
+    document.getElementById('pull-countdown-label').textContent = 'MYSTERY CANDY';
     doPull();
   });
 
@@ -477,6 +478,41 @@ async function renderGallery() {
 // ============================================
 
 var debugPollInterval = null;
+
+// ============================================
+// EASTER EGG — MYSTERY CANDY
+// ============================================
+
+function showEasterEgg() {
+  // Banner
+  var banner = document.createElement('div');
+  banner.style.cssText = 'position:fixed;top:30%;left:50%;transform:translate(-50%,-50%);z-index:9999;font-family:var(--pixel-font);text-align:center;pointer-events:none';
+  banner.innerHTML = '<div style="font-size:24px">🍬</div><div style="font-size:8px;color:var(--text-bright);letter-spacing:2px;margin-top:8px">HEY, YOU FOUND IT!</div>';
+  document.body.appendChild(banner);
+
+  // Candy confetti
+  var candies = ['🍬','🍭','🍫','🧁','🍪','🎀','✨','🌟'];
+  for (var i = 0; i < 30; i++) {
+    var c = document.createElement('div');
+    c.textContent = candies[Math.floor(Math.random() * candies.length)];
+    c.style.cssText = 'position:fixed;z-index:9998;font-size:' + (10 + Math.random() * 14) + 'px;pointer-events:none;' +
+      'left:' + (Math.random() * 100) + 'vw;top:-20px;' +
+      'animation:candy-fall ' + (1.5 + Math.random() * 2) + 's ease-in forwards;' +
+      'animation-delay:' + (Math.random() * 0.8) + 's;opacity:0';
+    document.body.appendChild(c);
+    (function(el) { setTimeout(function() { el.remove(); }, 4000); })(c);
+  }
+
+  // Inject keyframes if not already
+  if (!document.getElementById('candy-fall-style')) {
+    var style = document.createElement('style');
+    style.id = 'candy-fall-style';
+    style.textContent = '@keyframes candy-fall { 0% { transform:translateY(0) rotate(0deg); opacity:1; } 100% { transform:translateY(100vh) rotate(720deg); opacity:0; } }';
+    document.head.appendChild(style);
+  }
+
+  setTimeout(function() { banner.remove(); }, 2500);
+}
 
 function openDebugLog() {
   // Remove existing
