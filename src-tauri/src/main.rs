@@ -1,5 +1,14 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+/// Log to both stderr and ~/.dagashi/pull.log
+macro_rules! pull_log {
+    ($($arg:tt)*) => {{
+        let msg = format!($($arg)*);
+        eprintln!("{}", msg);
+        config::append_log(&msg);
+    }};
+}
+
 mod anime_db;
 mod config;
 mod gacha;
@@ -98,6 +107,34 @@ fn load_pull_meta(date: String) -> Result<storage::PullMeta, String> {
 }
 
 #[tauri::command]
+async fn refresh_anime_db(state: State<'_, AppState>) -> Result<usize, String> {
+    // Delete cache to force re-fetch
+    let cache = config::data_dir().join("anime_db.json");
+    std::fs::remove_file(&cache).ok();
+    config::append_log("[dagashi] Refreshing anime database...");
+
+    let db_ref = state.anime_db.clone();
+    tokio::task::spawn_blocking(move || {
+        match anime_db::load_or_fetch() {
+            Ok(db) => {
+                let count = db.anime.len();
+                *db_ref.lock().unwrap() = db;
+                Ok(count)
+            }
+            Err(e) => Err(e),
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn get_pull_log() -> String {
+    let path = config::data_dir().join("pull.log");
+    std::fs::read_to_string(&path).unwrap_or_default()
+}
+
+#[tauri::command]
 fn show_island() -> Result<(), String> {
     let signal = config::data_dir().join("show-island");
     std::fs::write(&signal, "1").map_err(|e| e.to_string())
@@ -109,7 +146,9 @@ async fn do_pull(state: State<'_, AppState>) -> Result<storage::PullMeta, String
     let cfg = state.config.lock().unwrap().clone();
     let db = state.anime_db.lock().unwrap().clone();
 
-    // Signal island that pull is starting
+    // Clear log and signal island
+    let log_path = config::data_dir().join("pull.log");
+    std::fs::write(&log_path, "").ok();
     let signal = config::data_dir().join("pulling");
     std::fs::write(&signal, "1").ok();
 
@@ -133,7 +172,7 @@ fn do_pull_inner(
 
     // 1. Roll rarity
     let rarity = gacha::roll_rarity(stats_snapshot.total, &cfg.rarity_thresholds);
-    eprintln!("[dagashi] Rolled rarity: {}", rarity.label());
+    pull_log!("[dagashi] Rolled rarity: {}", rarity.label());
 
     let used_urls: std::collections::HashSet<String> = storage::load_collection()
         .pulls
@@ -155,12 +194,12 @@ fn do_pull_inner(
             Some(a) => a,
             None => continue,
         };
-        eprintln!("[dagashi] Try anime #{}: {} (rank {})", anime_try + 1, anime.title, anime.popularity_rank);
+        pull_log!("[dagashi] Try anime #{}: {} (rank {})", anime_try + 1, anime.title, anime.popularity_rank);
 
         for char_try in 0..2u64 {
             // Cooldown between LLM calls to avoid quota exhaustion
             if llm_call_count > 0 {
-                eprintln!("[dagashi] Cooling down 5s before retry...");
+                pull_log!("[dagashi] Cooling down 5s before retry...");
                 std::thread::sleep(std::time::Duration::from_secs(5));
             }
             llm_call_count += 1;
@@ -173,12 +212,12 @@ fn do_pull_inner(
             ) {
                 Ok(s) => s,
                 Err(e) => {
-                    eprintln!("[dagashi] LLM failed (try {}): {}", char_try + 1, e);
+                    pull_log!("[dagashi] LLM failed (try {}): {}", char_try + 1, e);
                     last_error = e;
                     continue;
                 }
             };
-            eprintln!("[dagashi] Try character #{}: {} - {}", char_try + 1, sel.character, sel.scene);
+            pull_log!("[dagashi] Try character #{}: {} - {}", char_try + 1, sel.character, sel.scene);
 
             match image_pipeline::fetch_frames(
                 &sel.search_query,
@@ -191,14 +230,14 @@ fn do_pull_inner(
                 cfg.klipy_api_key.as_deref(),
             ) {
                 Ok(p) if p.frames.len() > 1 => {
-                    eprintln!("[dagashi] Got {} frames from {}", p.frames.len(), p.source);
+                    pull_log!("[dagashi] Got {} frames from {}", p.frames.len(), p.source);
                     selection = Some(sel);
                     pipeline = Some(p);
                     chosen_anime = Some(anime.clone());
                     break 'outer;
                 }
                 Ok(p) => {
-                    eprintln!("[dagashi] Only {} frame(s), trying next character", p.frames.len());
+                    pull_log!("[dagashi] Only {} frame(s), trying next character", p.frames.len());
                     // Keep as fallback if nothing better found
                     if selection.is_none() {
                         selection = Some(sel);
@@ -208,7 +247,7 @@ fn do_pull_inner(
                     last_error = "only static image found".to_string();
                 }
                 Err(e) => {
-                    eprintln!("[dagashi] Image fetch failed: {}", e);
+                    pull_log!("[dagashi] Image fetch failed: {}", e);
                     last_error = e;
                 }
             }
@@ -225,7 +264,7 @@ fn do_pull_inner(
     } else {
         "mono"
     };
-    eprintln!("[dagashi] Final: {} from {} ({} frames)", selection.character, anime.title, pipeline.frames.len());
+    pull_log!("[dagashi] Final: {} from {} ({} frames)", selection.character, anime.title, pipeline.frames.len());
 
     // 6. Save pull — keyed by date + hour + minute
     let now = chrono::Local::now();
@@ -347,6 +386,8 @@ fn main() {
             load_pull_frames,
             load_pull_meta,
             do_pull,
+            refresh_anime_db,
+            get_pull_log,
             show_island,
         ])
         .on_window_event(|window, event| {

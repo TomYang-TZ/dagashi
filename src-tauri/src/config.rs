@@ -86,6 +86,16 @@ pub fn data_dir() -> PathBuf {
         .join(".dagashi")
 }
 
+pub fn append_log(msg: &str) {
+    use std::io::Write;
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true).append(true)
+        .open(data_dir().join("pull.log"))
+    {
+        let _ = writeln!(f, "{}", msg);
+    }
+}
+
 pub fn config_path() -> PathBuf {
     data_dir().join("config.json")
 }

@@ -4,6 +4,11 @@ use std::fs;
 use crate::config;
 use crate::gacha::Rarity;
 
+fn log(msg: &str) {
+    eprintln!("{}", msg);
+    config::append_log(msg);
+}
+
 const JIKAN_TOP_URL: &str = "https://api.jikan.moe/v4/top/anime";
 const PAGES_TO_FETCH: u32 = 12; // 25 per page × 12 = 300 anime
 const CACHE_FILE: &str = "anime_db.json";
@@ -77,9 +82,9 @@ pub fn load_or_fetch() -> Result<AnimeDb, String> {
     }
 
     // Fetch from Jikan API
-    eprintln!("[dagashi] Fetching anime database from Jikan API...");
+    log("[dagashi] Fetching anime database from Jikan API...");
     let db = fetch_from_jikan()?;
-    eprintln!("[dagashi] Fetched {} anime", db.anime.len());
+    log(&format!("[dagashi] Fetched {} anime", db.anime.len()));
 
     // Save cache
     fs::create_dir_all(config::data_dir()).ok();
@@ -102,7 +107,7 @@ fn fetch_from_jikan() -> Result<AnimeDb, String> {
             "{JIKAN_TOP_URL}?type=tv&filter=bypopularity&limit=25&page={page}"
         );
 
-        eprintln!("[dagashi] Fetching anime page {page}/{PAGES_TO_FETCH}...");
+        log(&format!("[dagashi] Fetching anime page {page}/{PAGES_TO_FETCH}..."));
         let resp = client
             .get(&url)
             .timeout(std::time::Duration::from_secs(15))
@@ -113,7 +118,7 @@ fn fetch_from_jikan() -> Result<AnimeDb, String> {
         if !status.is_success() {
             // Jikan returns 429 when rate limited — wait and retry
             if status.as_u16() == 429 {
-                eprintln!("[dagashi] Rate limited, waiting 2s...");
+                log("[dagashi] Rate limited, waiting 2s...");
                 std::thread::sleep(std::time::Duration::from_secs(2));
                 continue;
             }
@@ -133,8 +138,10 @@ fn fetch_from_jikan() -> Result<AnimeDb, String> {
 
         for entry in data {
             let title = entry
-                .get("title")
+                .get("title_english")
                 .and_then(|t| t.as_str())
+                .filter(|t| !t.is_empty())
+                .or_else(|| entry.get("title").and_then(|t| t.as_str()))
                 .unwrap_or("")
                 .to_string();
 

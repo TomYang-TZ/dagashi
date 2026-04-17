@@ -383,6 +383,14 @@ async function doPull() {
   var countdown = document.getElementById('pull-countdown');
   var status = document.getElementById('pull-status');
 
+  // Debug button
+  var debugBtn = document.createElement('button');
+  debugBtn.textContent = 'DEBUG';
+  debugBtn.className = 'mode-btn';
+  debugBtn.style.cssText = 'font-size:6px;margin-top:8px;opacity:0.5';
+  debugBtn.onclick = function() { openDebugLog(); };
+  if (status) status.parentNode.insertBefore(debugBtn, status.nextSibling);
+
   // Animate countdown area while pulling
   var frame = 0;
   var msgIdx = 0;
@@ -463,6 +471,55 @@ async function renderGallery() {
 // ============================================
 // PULL POPOVER
 // ============================================
+
+// ============================================
+// DEBUG LOG POPOVER
+// ============================================
+
+var debugPollInterval = null;
+
+function openDebugLog() {
+  // Remove existing
+  var existing = document.getElementById('debug-popover');
+  if (existing) { closeDebugLog(); return; }
+
+  var overlay = document.createElement('div');
+  overlay.id = 'debug-popover';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;display:flex;align-items:center;justify-content:center';
+  overlay.innerHTML =
+    '<div style="background:var(--bg);border:1px solid var(--border);border-radius:4px;width:90%;max-width:600px;max-height:80vh;display:flex;flex-direction:column">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid var(--border)">' +
+        '<span style="font-family:var(--pixel-font);font-size:6px;letter-spacing:1px">PULL LOG</span>' +
+        '<button class="mode-btn" id="debug-close-btn" style="font-size:6px">CLOSE</button>' +
+      '</div>' +
+      '<pre id="debug-log-content" style="font-size:7px;line-height:10px;padding:8px 12px;overflow:auto;flex:1;color:var(--text-dim);white-space:pre-wrap;word-break:break-all;max-height:60vh"></pre>' +
+    '</div>';
+  document.body.appendChild(overlay);
+
+  document.getElementById('debug-close-btn').addEventListener('click', closeDebugLog);
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) closeDebugLog(); });
+
+  // Poll log every 500ms
+  pollDebugLog();
+  debugPollInterval = setInterval(pollDebugLog, 500);
+}
+
+async function pollDebugLog() {
+  try {
+    var log = await invoke('get_pull_log');
+    var el = document.getElementById('debug-log-content');
+    if (el) {
+      el.textContent = log || '(waiting for log output...)';
+      el.scrollTop = el.scrollHeight;
+    }
+  } catch (e) {}
+}
+
+function closeDebugLog() {
+  if (debugPollInterval) { clearInterval(debugPollInterval); debugPollInterval = null; }
+  var el = document.getElementById('debug-popover');
+  if (el) el.remove();
+}
 
 function closePullPopover() {
   var overlay = document.getElementById('pull-popover');
@@ -618,12 +675,18 @@ async function renderCollection() {
   // Stats bar
   html += '<div class="roster-progress">';
   if (loading) {
-    html += 'LOADING ANIME DATABASE... <span id="db-count">0</span> LOADED';
+    html += 'LOADING ANIME DATABASE... <span id="db-count">0</span> LOADED ';
+    html += '<button class="mode-btn" onclick="openDebugLog()" style="font-size:5px;opacity:0.5;vertical-align:middle">DEBUG</button>';
   } else {
-    html += 'ANIME DATABASE: ' + totalAnime + ' SHOWS | PULLED FROM: ' + collectedAnime.length;
+    html += 'ANIME DATABASE: ' + totalAnime + ' SHOWS | PULLED FROM: ' + collectedAnime.length + ' ';
+    html += '<button class="mode-btn" id="refresh-db-btn" style="font-size:5px;opacity:0.5;vertical-align:middle">REFRESH</button> ';
+    html += '<button class="mode-btn" onclick="openDebugLog()" style="font-size:5px;opacity:0.5;vertical-align:middle">DEBUG</button>';
   }
   html += '<div class="progress-bar"><div class="progress-fill" style="width:' + Math.min(100, (totalAnime / 1000) * 100) + '%"></div></div>';
   html += '</div>';
+
+  // Search
+  html += '<div class="mt-8" style="text-align:center"><input class="settings-input" id="roster-search" placeholder="SEARCH ANIME OR CHARACTER..." style="font-size:7px;letter-spacing:1px;width:100%;max-width:300px"></div>';
 
   // Rarity filter tabs
   html += '<div class="mode-toggle mt-8">';
@@ -653,6 +716,41 @@ async function renderCollection() {
   });
 
   bindRosterClicks(collection);
+
+  // Refresh DB button
+  var refreshBtn = document.getElementById('refresh-db-btn');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', async function() {
+      refreshBtn.textContent = 'REFRESHING...';
+      refreshBtn.disabled = true;
+      openDebugLog();
+      try {
+        var count = await invoke('refresh_anime_db');
+        refreshBtn.textContent = 'DONE (' + count + ')';
+        setTimeout(function() { closeDebugLog(); renderCollection(); }, 1000);
+      } catch (e) {
+        refreshBtn.textContent = 'FAILED';
+      }
+    });
+  }
+
+  // Search
+  document.getElementById('roster-search').addEventListener('input', function() {
+    var q = this.value.toLowerCase().trim();
+    var activeFilter = page.querySelector('[data-filter].active')?.dataset.filter || 'all';
+    if (!q) {
+      document.getElementById('anime-grid').innerHTML = renderAnimeGrid(dbStatus, collectedAnime, activeFilter);
+      bindRosterClicks(collection);
+      return;
+    }
+    var charToAnime = {};
+    (collection.pulls || []).forEach(function(p) {
+      if (!charToAnime[p.anime_title]) charToAnime[p.anime_title] = [];
+      charToAnime[p.anime_title].push(p.character.toLowerCase());
+    });
+    document.getElementById('anime-grid').innerHTML = renderAnimeGrid(dbStatus, collectedAnime, activeFilter, q, charToAnime);
+    bindRosterClicks(collection);
+  });
 
   // Poll for DB updates if still loading
   if (loading && !animeDbPollInterval) {
@@ -713,7 +811,7 @@ function showAnimePulls(animeTitle, pulls) {
   });
 }
 
-function renderAnimeGrid(dbStatus, collectedAnime, filter) {
+function renderAnimeGrid(dbStatus, collectedAnime, filter, searchQuery, charToAnime) {
   var html = '';
   var animeList = dbStatus.anime || [];
 
@@ -723,6 +821,14 @@ function renderAnimeGrid(dbStatus, collectedAnime, filter) {
   }
 
   var filtered = filter === 'all' ? animeList : animeList.filter(function(a) { return a.rarity === filter; });
+
+  if (searchQuery) {
+    filtered = filtered.filter(function(a) {
+      if (a.title.toLowerCase().indexOf(searchQuery) >= 0) return true;
+      var chars = (charToAnime || {})[a.title] || [];
+      return chars.some(function(c) { return c.indexOf(searchQuery) >= 0; });
+    });
+  }
 
   for (var anime of filtered) {
     var isPulled = collectedAnime.indexOf(anime.title) >= 0;
