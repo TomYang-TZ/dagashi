@@ -385,12 +385,15 @@ async function doPull() {
   var status = document.getElementById('pull-status');
 
   // Debug button
-  var debugBtn = document.createElement('button');
-  debugBtn.textContent = 'DEBUG';
-  debugBtn.className = 'mode-btn';
-  debugBtn.style.cssText = 'font-size:6px;margin-top:8px;opacity:0.5';
-  debugBtn.onclick = function() { openDebugLog(); };
-  if (status) status.parentNode.insertBefore(debugBtn, status.nextSibling);
+  if (!document.getElementById('pull-debug-btn')) {
+    var debugBtn = document.createElement('button');
+    debugBtn.id = 'pull-debug-btn';
+    debugBtn.textContent = 'DEBUG';
+    debugBtn.className = 'mode-btn';
+    debugBtn.style.cssText = 'font-size:6px;margin-top:8px;opacity:0.5';
+    debugBtn.onclick = function() { openDebugLog(); };
+    if (status) status.parentNode.insertBefore(debugBtn, status.nextSibling);
+  }
 
   // Animate countdown area while pulling
   var frame = 0;
