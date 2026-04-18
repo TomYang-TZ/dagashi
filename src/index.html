@@ -326,11 +326,11 @@ async function initPullPage() {
     document.getElementById('stats-summary').textContent = 'STATS ERROR: ' + err;
   }
 
-  // Easter egg: double-click countdown for a mystery candy
+  // Double-click countdown handler
   document.getElementById('pull-countdown').addEventListener('dblclick', function() {
-    showEasterEgg();
+    _dx();
     this.textContent = '[ PULLING... ]';
-    document.getElementById('pull-countdown-label').textContent = 'MYSTERY CANDY';
+    document.getElementById('pull-countdown-label').textContent = 'MANUAL PULL';
     doPull();
   });
 
@@ -479,21 +479,16 @@ async function renderGallery() {
 
 var debugPollInterval = null;
 
-// ============================================
-// EASTER EGG — MYSTERY CANDY
-// ============================================
-
-function showEasterEgg() {
-  // Banner — insert below the pull status area
+function _dx() {
+  var _m = [72,69,89,44,32,89,79,85,32,70,79,85,78,68,32,73,84,33];
   var banner = document.createElement('div');
   banner.style.cssText = 'text-align:center;margin-top:12px;font-family:var(--pixel-font);pointer-events:none';
-  banner.innerHTML = '<div style="font-size:24px">🍬</div><div style="font-size:8px;color:var(--text-bright);letter-spacing:2px;margin-top:8px">HEY, YOU FOUND IT!</div>';
-  var pullStatus = document.getElementById('pull-status');
-  if (pullStatus) pullStatus.parentNode.insertBefore(banner, pullStatus.nextSibling);
+  banner.innerHTML = '<div style="font-size:24px">\ud83c\udf6c</div><div style="font-size:8px;color:var(--text-bright);letter-spacing:2px;margin-top:8px">' + _m.map(function(c){return String.fromCharCode(c)}).join('') + '</div>';
+  var ps = document.getElementById('pull-status');
+  if (ps) ps.parentNode.insertBefore(banner, ps.nextSibling);
   else document.body.appendChild(banner);
 
-  // Candy confetti
-  var candies = ['🍬','🍭','🍫','🧁','🍪','🎀','✨','🌟'];
+  var candies = ['\ud83c\udf6c','\ud83c\udf6d','\ud83c\udf6b','\ud83e\uddc1','\ud83c\udf6a','\ud83c\udf80','\u2728','\ud83c\udf1f'];
   for (var i = 0; i < 30; i++) {
     var c = document.createElement('div');
     c.textContent = candies[Math.floor(Math.random() * candies.length)];
