@@ -73,6 +73,10 @@ A standalone Swift app that sits at the macOS notch.
   <img src="assets/island-night.gif" alt="Dynamic Island at night — expanded pull view" width="600">
 </p>
 
+<p align="center">
+  <img src="assets/megumi.gif" alt="Megumi pull demo" width="600">
+</p>
+
 ## Scripts
 
 ```bash
