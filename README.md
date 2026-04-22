@@ -25,6 +25,10 @@ Includes a **Dynamic Island** overlay at the macOS notch — a pixel art dagashi
   <img src="assets/dagashi-app-demo.gif" alt="Dagashi app demo" width="600">
 </p>
 
+<p align="center">
+  <img src="assets/kakashi.gif" alt="Kakashi pull" width="600">
+</p>
+
 ## Quick Start
 
 ```bash
