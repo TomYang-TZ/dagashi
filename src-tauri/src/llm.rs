@@ -1,10 +1,14 @@
 use serde::{Deserialize, Serialize};
 use std::io::Write;
 use std::process::Command;
+use std::time::{Duration, Instant};
+use std::thread;
 
 use crate::config::LlmConfig;
 use crate::gacha::Rarity;
 use crate::stats::DailyStats;
+
+const LLM_TIMEOUT: Duration = Duration::from_secs(120);
 
 /// Clean up a specific claude -p session transcript.
 fn cleanup_session_transcript(session_id: &str) {
@@ -143,6 +147,21 @@ Rules:
         stdin.write_all(prompt.as_bytes()).map_err(|e| e.to_string())?;
     } // stdin dropped here — sends EOF to claude process
 
+    let start = Instant::now();
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => break,
+            Ok(None) => {
+                if start.elapsed() > LLM_TIMEOUT {
+                    child.kill().ok();
+                    child.wait().ok();
+                    return Err("LLM timed out".to_string());
+                }
+                thread::sleep(Duration::from_millis(200));
+            }
+            Err(e) => return Err(format!("failed to wait on claude: {e}")),
+        }
+    }
     let output = child.wait_with_output().map_err(|e| e.to_string())?;
     let stdout = String::from_utf8_lossy(&output.stdout);
 
