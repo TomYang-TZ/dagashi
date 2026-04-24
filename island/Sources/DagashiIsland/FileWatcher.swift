@@ -18,6 +18,9 @@ class FileWatcher {
     func startWatching() {
         lastPullCount = model?.pullCount ?? 0
         lastHourKey = currentHourKey()
+        // Clean stale pulling file from previous crash/session
+        let stalePulling = dagashiDir.appendingPathComponent("pulling")
+        try? FileManager.default.removeItem(at: stalePulling)
         watchCollection()
         startPullingPoller()
         startHourlyTrigger()
