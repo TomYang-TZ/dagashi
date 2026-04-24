@@ -24,7 +24,7 @@ use std::sync::Mutex;
 use tauri::{Manager, State};
 
 struct AppState {
-    config: Mutex<config::Config>,
+    config: std::sync::Arc<Mutex<config::Config>>,
     anime_db: std::sync::Arc<Mutex<anime_db::AnimeDb>>,
 }
 
@@ -140,6 +140,13 @@ fn show_island() -> Result<(), String> {
     std::fs::write(&signal, "1").map_err(|e| e.to_string())
 }
 
+struct PullingGuard(std::path::PathBuf);
+impl Drop for PullingGuard {
+    fn drop(&mut self) {
+        std::fs::remove_file(&self.0).ok();
+    }
+}
+
 #[tauri::command]
 async fn do_pull(state: State<'_, AppState>) -> Result<storage::PullMeta, String> {
     let stats_snapshot = get_stats();
@@ -152,14 +159,14 @@ async fn do_pull(state: State<'_, AppState>) -> Result<storage::PullMeta, String
     let signal = config::data_dir().join("pulling");
     std::fs::write(&signal, "1").ok();
 
+    // Guard removes signal file on any exit path (panic, cancel, error)
+    let _guard = PullingGuard(signal);
+
     let result = tokio::task::spawn_blocking(move || {
         do_pull_inner(stats_snapshot, cfg, db)
     })
     .await
     .map_err(|e| format!("pull task failed: {e}"))?;
-
-    // Remove signal
-    std::fs::remove_file(&signal).ok();
 
     result
 }
@@ -294,6 +301,36 @@ fn do_pull_inner(
     Ok(meta)
 }
 
+fn watch_trigger_pull(
+    config: std::sync::Arc<Mutex<config::Config>>,
+    anime_db: std::sync::Arc<Mutex<anime_db::AnimeDb>>,
+) {
+    let trigger = config::data_dir().join("trigger-pull");
+    loop {
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        if !trigger.exists() {
+            continue;
+        }
+        std::fs::remove_file(&trigger).ok();
+        eprintln!("[dagashi] Island triggered auto-pull");
+
+        let stats_snapshot = get_stats();
+        let cfg = config.lock().unwrap().clone();
+        let db = anime_db.lock().unwrap().clone();
+
+        let log_path = config::data_dir().join("pull.log");
+        std::fs::write(&log_path, "").ok();
+        let signal = config::data_dir().join("pulling");
+        std::fs::write(&signal, "1").ok();
+        let _guard = PullingGuard(signal);
+
+        match do_pull_inner(stats_snapshot, cfg, db) {
+            Ok(meta) => eprintln!("[dagashi] Auto-pull done: {} ({})", meta.character, meta.rarity),
+            Err(e) => eprintln!("[dagashi] Auto-pull failed: {e}"),
+        }
+    }
+}
+
 fn launch_daemon_if_needed() {
     use std::process::Command;
 
@@ -370,10 +407,18 @@ fn main() {
         }
     });
 
+    // Background thread: watch for trigger-pull signal from the island
+    let shared_config = std::sync::Arc::new(Mutex::new(cfg));
+    {
+        let cfg = shared_config.clone();
+        let db = shared_anime_db.clone();
+        std::thread::spawn(move || watch_trigger_pull(cfg, db));
+    }
+
     eprintln!("[dagashi] Starting Tauri...");
     tauri::Builder::default()
         .manage(AppState {
-            config: Mutex::new(cfg),
+            config: shared_config,
             anime_db: shared_anime_db,
         })
         .invoke_handler(tauri::generate_handler![

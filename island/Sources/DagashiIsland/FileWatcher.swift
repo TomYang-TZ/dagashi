@@ -8,6 +8,8 @@ class FileWatcher {
     private var pullingFd: Int32 = -1
     private var lastPullCount: Int = 0
     private var pullingTimer: Timer?
+    private var hourlyTimer: Timer?
+    private var lastHourKey: String = ""
 
     private var dagashiDir: URL {
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".dagashi")
@@ -15,14 +17,17 @@ class FileWatcher {
 
     func startWatching() {
         lastPullCount = model?.pullCount ?? 0
+        lastHourKey = currentHourKey()
         watchCollection()
         startPullingPoller()
+        startHourlyTrigger()
     }
 
     func stopWatching() {
         collectionSource?.cancel()
         pullingSource?.cancel()
         pullingTimer?.invalidate()
+        hourlyTimer?.invalidate()
         if collectionFd >= 0 { close(collectionFd); collectionFd = -1 }
         if pullingFd >= 0 { close(pullingFd); pullingFd = -1 }
     }
@@ -55,6 +60,28 @@ class FileWatcher {
                 }
             }
             self.wasPulling = isPulling
+        }
+    }
+
+    private func currentHourKey() -> String {
+        let now = Date()
+        let cal = Calendar.current
+        let y = cal.component(.year, from: now)
+        let m = cal.component(.month, from: now)
+        let d = cal.component(.day, from: now)
+        let h = cal.component(.hour, from: now)
+        return String(format: "%04d-%02d-%02d-%02d", y, m, d, h)
+    }
+
+    private func startHourlyTrigger() {
+        hourlyTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            let key = self.currentHourKey()
+            if key != self.lastHourKey {
+                self.lastHourKey = key
+                let trigger = self.dagashiDir.appendingPathComponent("trigger-pull")
+                try? "1".write(to: trigger, atomically: true, encoding: .utf8)
+            }
         }
     }
 
